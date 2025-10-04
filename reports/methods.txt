@@ -1,0 +1,42 @@
+NHANES 2017-2018 BMI vs % Body Fat Analysis Methods
+==================================================
+
+Data Source:
+- Cycles: 2017-2018 only
+- Files: DEMO_J.XPT, BMX_J.XPT, DXX_J.XPT, DXXAG_J.XPT
+
+Sample:
+- Target population: U.S. civilian non-institutionalized adults (20-59 years)
+- Inclusion: Valid BMI, DXA % body fat, and survey design variables
+- Final sample size: 2240 participants
+- Exclusions: 1179 due to missing data
+
+Variables:
+- BMI: BMXBMI from BMX_J (kg/m²)
+- Whole-body % body fat: DXDTOFAT from DXX_J
+- BMI classes: <18.5, [18.5,25), [25,30), [30,35), [35,40), ≥40 kg/m²
+
+Survey Design:
+- Weights: WTMEC2YR (2-year MEC examination weights)
+- Strata: SDMVSTRA
+- Primary sampling units: SDMVPSU
+- Variance estimation: Taylor linearization
+- Lonely PSU adjustment: applied
+
+Statistical Methods:
+- All estimates are survey-weighted with design-based standard errors
+- Correlations computed from survey-weighted covariance matrix
+- 95% confidence intervals use design-based standard errors
+- Quantiles computed using survey methods
+
+Missing Data:
+- Complete-case analysis (listwise deletion)
+- No multiple imputation applied
+- DXA coverage in 2017-2018 cycle is generally good
+
+Software:
+- R version: R version 4.2.3 (2023-03-15)
+- survey package version: 4.4.2
+- dplyr package version: 1.1.4
+- Analysis date: 2025-10-04
+
