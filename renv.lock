@@ -1,0 +1,91 @@
+{
+  "R": {
+    "Version": "4.2.3",
+    "Repositories": [
+      {
+        "Name": "CRAN",
+        "URL": "https://cran.rstudio.com"
+      }
+    ]
+  },
+  "Packages": {
+    "renv": {
+      "Package": "renv",
+      "Version": "1.1.5",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "here": {
+      "Package": "here",
+      "Version": "1.0.2",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "foreign": {
+      "Package": "foreign",
+      "Version": "0.8-90",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "survey": {
+      "Package": "survey",
+      "Version": "4.4-8",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "dplyr": {
+      "Package": "dplyr",
+      "Version": "1.1.4",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "ggplot2": {
+      "Package": "ggplot2",
+      "Version": "4.0.0",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "jsonlite": {
+      "Package": "jsonlite",
+      "Version": "2.0.0",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "httr": {
+      "Package": "httr",
+      "Version": "1.4.7",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "testthat": {
+      "Package": "testthat",
+      "Version": "3.2.3",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "arrow": {
+      "Package": "arrow",
+      "Version": "21.0.0.1",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "digest": {
+      "Package": "digest",
+      "Version": "0.6.37",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "nhanesA": {
+      "Package": "nhanesA",
+      "Version": "1.4",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "quarto": {
+      "Package": "quarto",
+      "Version": "1.5.1",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    }
+  }
+}
