@@ -1,0 +1,35 @@
+Package: nhanesbmi
+Title: NHANES BMI vs Body Fat Analysis Package
+Version: 1.0.0
+Authors@R: person("NHANES", "BMI Body Fat Analysis Team", role = c("aut", "cre"),
+                  email = "analysis@nhanes-bmi.org")
+Description: A comprehensive R package for analyzing the relationship between Body Mass Index (BMI) and whole-body percent body fat using NHANES 2017-2018 data. Provides design-based (survey-weighted) statistical methods for reproducible analysis of U.S. civilian non-institutionalized adults aged 20-59 years.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.0.0)
+Imports:
+    dplyr,
+    ggplot2,
+    survey,
+    foreign,
+    readr,
+    yaml,
+    lintr,
+    styler,
+    testthat,
+    knitr,
+    rmarkdown,
+    here
+Suggests:
+    shiny,
+    plotly,
+    DT,
+    nhanesA,
+    quarto
+URL: https://github.com/altalanta/nhanes-bmi-bodyfat
+BugReports: https://github.com/altalanta/nhanes-bmi-bodyfat/issues
+VignetteBuilder: knitr

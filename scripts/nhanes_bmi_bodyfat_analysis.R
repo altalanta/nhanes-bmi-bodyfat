@@ -2,26 +2,30 @@
 # Using design-based (survey-weighted) methods
 # Target population: U.S. civilian non-institutionalized adults (20-59)
 
-# Load configuration
-source("scripts/load_config.R")
-config <- load_config()
-ensure_directories(config)
+# Load error handling utilities
+source("scripts/error_handling.R")
+
+# Load configuration with error handling
+config <- safe_load_config()
+ensure_output_dirs(config)
 
 # Set library path
 .libPaths(c('~/R_libs', .libPaths()))
 
-# Load required libraries
-library(foreign)
-library(survey)
-library(dplyr)
-library(ggplot2)
-library(splines)
+# Load required libraries with error handling
+required_packages <- c("foreign", "survey", "dplyr", "ggplot2", "splines", "readr")
 
-# Create log file using configuration
-log_file <- config$log_file_path
-cat("NHANES 2017-2018 BMI vs % Body Fat Analysis\n", file = log_file)
-cat("===========================================\n", file = log_file, append = TRUE)
-cat("Start time:", as.character(Sys.time()), "\n\n", file = log_file, append = TRUE)
+for (pkg in required_packages) {
+  tryCatch({
+    library(pkg, character.only = TRUE)
+  }, error = function(e) {
+    stop(NhanesError(
+      paste("Required package not available:", pkg),
+      code = "MISSING_PACKAGE",
+      details = list(package = pkg, error = e$message)
+    ))
+  })
+}
 
 # Set options for survey package
 options(survey.lonely.psu = "adjust")
@@ -33,19 +37,25 @@ log_msg <- function(msg) {
   cat(msg, "\n")
 }
 
-log_msg("Step 1: Loading NHANES 2017-2018 data files")
+# Step 1: Load and validate NHANES data files
+safe_execute({
+  demo <- safe_read_xpt(config$nhanes_demo_path, "DEMO_J dataset")
+  bmx <- safe_read_xpt(config$nhanes_bmx_path, "BMX_J dataset")
+  dxx <- safe_read_xpt(config$nhanes_dxx_path, "DXX_J dataset")
+  dxxag <- safe_read_xpt(config$nhanes_dxxag_path, "DXXAG_J dataset")
 
-# Load datasets using configuration paths
-demo <- read.xport(config$nhanes_demo_path)
-bmx <- read.xport(config$nhanes_bmx_path)
-dxx <- read.xport(config$nhanes_dxx_path)
-dxxag <- read.xport(config$nhanes_dxxag_path)
+  # Validate datasets
+  validate_nhanes_data(demo, "DEMO_J", c("SEQN", "RIDAGEYR", "RIAGENDR", "WTMEC2YR", "SDMVSTRA", "SDMVPSU"))
+  validate_nhanes_data(bmx, "BMX_J", c("SEQN", "BMXBMI"))
+  validate_nhanes_data(dxx, "DXX_J", c("SEQN"))
+  validate_nhanes_data(dxxag, "DXXAG_J", c("SEQN"))
 
-log_msg(paste("Loaded datasets:"))
-log_msg(paste("- DEMO_J:", nrow(demo), "records"))
-log_msg(paste("- BMX_J:", nrow(bmx), "records"))
-log_msg(paste("- DXX_J:", nrow(dxx), "records"))
-log_msg(paste("- DXXAG_J:", nrow(dxxag), "records"))
+  safe_log(paste("Successfully loaded and validated all datasets:"), "INFO")
+  safe_log(paste("- DEMO_J:", nrow(demo), "records"), "INFO")
+  safe_log(paste("- BMX_J:", nrow(bmx), "records"), "INFO")
+  safe_log(paste("- DXX_J:", nrow(dxx), "records"), "INFO")
+  safe_log(paste("- DXXAG_J:", nrow(dxxag), "records"), "INFO")
+}, "Data Loading and Validation", config)
 
 # Step 2: Identify % body fat variable in DXX_J
 log_msg("\nStep 2: Identifying % body fat variable in DXX_J")
@@ -179,18 +189,30 @@ nhanes_complete <- nhanes_complete %>%
 # Rename body fat variable for easier reference
 names(nhanes_complete)[names(nhanes_complete) == bodyfat_var] <- "bodyfat_pct"
 
-# Step 5: Create survey design
-log_msg("\nStep 5: Creating survey design object")
+# Step 5: Create and validate survey design
+safe_execute({
+  # Validate survey design parameters before creating design
+  validate_survey_design(
+    nhanes_complete,
+    config$survey_weights_col,
+    config$strata_col,
+    config$psu_col
+  )
 
-svy_design <- svydesign(
-  ids = ~SDMVPSU,
-  strata = ~SDMVSTRA, 
-  weights = ~WTMEC2YR,
-  nest = TRUE,
-  data = nhanes_complete
-)
+  # Create survey design object
+  svy_design <- svydesign(
+    ids = as.formula(paste("~", config$psu_col)),
+    strata = as.formula(paste("~", config$strata_col)),
+    weights = as.formula(paste("~", config$survey_weights_col)),
+    nest = TRUE,
+    data = nhanes_complete
+  )
 
-log_msg("Survey design created with Taylor linearization")
+  safe_log("Survey design created with Taylor linearization", "INFO")
+  safe_log(paste("Design includes", nrow(nhanes_complete), "observations"), "INFO")
+  safe_log(paste("Number of strata:", length(unique(nhanes_complete[[config$strata_col]])), "INFO"))
+  safe_log(paste("Number of PSUs:", length(unique(nhanes_complete[[config$psu_col]])), "INFO"))
+}, "Survey Design Creation and Validation", config)
 
 # Step 6: Survey-weighted correlation analysis
 log_msg("\nStep 6: Computing survey-weighted correlations")
