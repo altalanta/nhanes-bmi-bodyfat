@@ -29,6 +29,18 @@ report: viz
 test:
 	$(R) -e "testthat::test_dir('tests')"
 
+# Code quality
+lint:
+	$(R) -e "lintr::lint_dir('scripts')"
+
+format:
+	$(R) -e "styler::style_dir('scripts')"
+
+format-check:
+	$(R) -e "styler::style_dir('scripts', dry = 'on')"
+
+quality: lint format-check
+
 # Utilities
 clean:
 	rm -f data/derived/*
@@ -50,6 +62,10 @@ help:
 	@echo "  viz        - Generate publication-ready visualization"
 	@echo "  report     - Render Quarto report to HTML"
 	@echo "  test       - Run test suite"
+	@echo "  lint       - Check code style and quality"
+	@echo "  format     - Auto-format R code to project style"
+	@echo "  format-check - Check if code needs formatting"
+	@echo "  quality    - Run linting and format checks"
 	@echo "  clean      - Remove generated output files"
 	@echo "  cleanall   - Remove all generated files including raw data"
 	@echo "  help       - Show this help message"
