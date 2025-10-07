@@ -2,6 +2,11 @@
 # Using design-based (survey-weighted) methods
 # Target population: U.S. civilian non-institutionalized adults (20-59)
 
+# Load configuration
+source("scripts/load_config.R")
+config <- load_config()
+ensure_directories(config)
+
 # Set library path
 .libPaths(c('~/R_libs', .libPaths()))
 
@@ -12,8 +17,8 @@ library(dplyr)
 library(ggplot2)
 library(splines)
 
-# Create log file
-log_file <- "~/Downloads/nhanes_2017_2018_outputs/analysis_log.txt"
+# Create log file using configuration
+log_file <- config$log_file_path
 cat("NHANES 2017-2018 BMI vs % Body Fat Analysis\n", file = log_file)
 cat("===========================================\n", file = log_file, append = TRUE)
 cat("Start time:", as.character(Sys.time()), "\n\n", file = log_file, append = TRUE)
@@ -30,11 +35,11 @@ log_msg <- function(msg) {
 
 log_msg("Step 1: Loading NHANES 2017-2018 data files")
 
-# Load datasets
-demo <- read.xport("~/Downloads/DEMO_J.xpt")
-bmx <- read.xport("~/Downloads/BMX_J.xpt")
-dxx <- read.xport("~/Downloads/DXX_J.xpt")
-dxxag <- read.xport("~/Downloads/DXXAG_J.xpt")
+# Load datasets using configuration paths
+demo <- read.xport(config$nhanes_demo_path)
+bmx <- read.xport(config$nhanes_bmx_path)
+dxx <- read.xport(config$nhanes_dxx_path)
+dxxag <- read.xport(config$nhanes_dxxag_path)
 
 log_msg(paste("Loaded datasets:"))
 log_msg(paste("- DEMO_J:", nrow(demo), "records"))
