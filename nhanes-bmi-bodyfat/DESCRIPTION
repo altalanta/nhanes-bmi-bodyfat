@@ -43,7 +43,16 @@ Suggests:
     conflicted,
     profvis,
     profmem,
-    usethis
+    usethis,
+    rstanarm,
+    bayesplot,
+    randomForest,
+    xgboost,
+    caret,
+    glmnet,
+    quantreg,
+    lme4,
+    nlme
 URL: https://github.com/altalanta/nhanes-bmi-bodyfat
 BugReports: https://github.com/altalanta/nhanes-bmi-bodyfat/issues
 VignetteBuilder: knitr

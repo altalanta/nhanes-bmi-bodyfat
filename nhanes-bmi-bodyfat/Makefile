@@ -53,6 +53,10 @@ prepare-cran:
 
 deploy: deploy-shiny deploy-docker
 
+# Advanced analysis
+advanced:
+	Rscript -e "library(nhanesbmi); results <- run_optimized_analysis(); advanced <- run_complete_advanced_analysis(results\$analytic_data, results\$config); saveRDS(advanced, 'outputs/tables/advanced_analysis_results.rds')"
+
 # Release management
 release-patch:
 	Rscript -e "usethis::use_version('patch')"
@@ -92,6 +96,7 @@ help:
 	@echo "  deploy-docker - Build and test Docker container"
 	@echo "  prepare-cran - Prepare package for CRAN submission"
 	@echo "  deploy     - Deploy to both Shiny and Docker"
+	@echo "  advanced   - Run complete advanced statistical analysis"
 	@echo "  release-patch - Create patch version bump"
 	@echo "  release-minor - Create minor version bump"
 	@echo "  release-major - Create major version bump"
