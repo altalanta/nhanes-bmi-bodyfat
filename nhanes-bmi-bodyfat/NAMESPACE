@@ -71,4 +71,5 @@ import(quantreg)
 import(conflicted)
 import(profvis)
 import(profmem)
+import(tools)
 

@@ -41,6 +41,28 @@ format-check:
 
 quality: lint format-check
 
+# Deployment
+deploy-shiny:
+	Rscript deployment/deploy-shinyapps.R
+
+deploy-docker:
+	Rscript deployment/deploy-docker.R
+
+prepare-cran:
+	Rscript deployment/prepare-cran.R
+
+deploy: deploy-shiny deploy-docker
+
+# Release management
+release-patch:
+	Rscript -e "usethis::use_version('patch')"
+
+release-minor:
+	Rscript -e "usethis::use_version('minor')"
+
+release-major:
+	Rscript -e "usethis::use_version('major')"
+
 # Utilities
 clean:
 	rm -f data/derived/*
@@ -66,6 +88,13 @@ help:
 	@echo "  format     - Auto-format R code to project style"
 	@echo "  format-check - Check if code needs formatting"
 	@echo "  quality    - Run linting and format checks"
+	@echo "  deploy-shiny - Deploy Shiny app to shinyapps.io"
+	@echo "  deploy-docker - Build and test Docker container"
+	@echo "  prepare-cran - Prepare package for CRAN submission"
+	@echo "  deploy     - Deploy to both Shiny and Docker"
+	@echo "  release-patch - Create patch version bump"
+	@echo "  release-minor - Create minor version bump"
+	@echo "  release-major - Create major version bump"
 	@echo "  clean      - Remove generated output files"
 	@echo "  cleanall   - Remove all generated files including raw data"
 	@echo "  help       - Show this help message"

@@ -1,0 +1,160 @@
+name: Release and Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.repository == 'altalanta/nhanes-bmi-bodyfat'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up R
+      uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: '4.4.0'
+        use-public-rspm: true
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev \
+          libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev \
+          libtiff5-dev libjpeg-dev
+
+    - name: Install R dependencies
+      run: |
+        install.packages("renv")
+        renv::restore()
+        install.packages(c("devtools", "roxygen2", "usethis", "pkgdown"))
+      shell: Rscript {0}
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=$(echo ${{ github.ref }} | sed 's|refs/tags/v||')
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Update package version
+      run: |
+        Rscript -e "
+          desc <- read.dcf('DESCRIPTION')
+          desc[1, 'Version'] <- '${{ steps.version.outputs.VERSION }}'
+          write.dcf(desc, 'DESCRIPTION')
+        "
+
+    - name: Build package documentation
+      run: |
+        Rscript -e "
+          library(devtools)
+          document()
+          build_vignettes()
+        "
+
+    - name: Check package
+      run: |
+        Rscript -e "
+          library(devtools)
+          check(args = c('--as-cran', '--no-manual'))
+        "
+
+    - name: Build package
+      run: |
+        Rscript -e "
+          library(devtools)
+          build(path = '.')
+        "
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          nhanesbmi_*.tar.gz
+          nhanesbmi_*.tgz
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Deploy to shinyapps.io
+      if: success()
+      run: |
+        Rscript -e "
+          library(rsconnect)
+          library(nhanesbmi)
+
+          # Set up rsconnect account
+          setAccountInfo(
+            name = 'altalanta',
+            token = Sys.getenv('SHINYAPPS_TOKEN'),
+            secret = Sys.getenv('SHINYAPPS_SECRET')
+          )
+
+          # Run analysis and create app
+          results <- run_optimized_analysis()
+          app_dir <- create_standalone_app(
+            'outputs/tables/nhanes_analysis_results.rds',
+            'release_app'
+          )
+
+          # Deploy to shinyapps.io
+          deployApp(
+            appDir = 'release_app/app',
+            appName = 'nhanes-bmi-bodyfat',
+            appTitle = 'NHANES BMI vs Body Fat Analysis Dashboard (v${{ steps.version.outputs.VERSION }})',
+            forceUpdate = TRUE
+          )
+        "
+      env:
+        SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+        SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+
+  cran-check:
+    runs-on: ubuntu-latest
+    if: github.repository == 'altalanta/nhanes-bmi-bodyfat'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up R
+      uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: '4.4.0'
+        use-public-rspm: true
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev \
+          libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev \
+          libtiff5-dev libjpeg-dev
+
+    - name: Install R dependencies
+      run: |
+        install.packages("renv")
+        renv::restore()
+        install.packages(c("devtools", "rcmdcheck", "covr"))
+      shell: Rscript {0}
+
+    - name: Run R CMD check
+      run: |
+        Rscript -e "
+          library(rcmdcheck)
+          check(args = c('--as-cran', '--no-manual', '--no-vignettes'))
+        "
+
+    - name: Test coverage
+      run: |
+        Rscript -e "
+          library(covr)
+          coverage <- package_coverage()
+          print(coverage)
+          if (percent_coverage(coverage) < 80) {
+            stop('Code coverage below 80%')
+          }
+        "

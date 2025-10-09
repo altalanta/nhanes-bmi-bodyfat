@@ -1,0 +1,115 @@
+name: Deploy Shiny App
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'R/**'
+      - 'scripts/**'
+      - 'config/**'
+      - '.github/workflows/deploy-shiny.yml'
+  release:
+    types: [published]
+
+jobs:
+  deploy-shiny:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'release'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: '4.4.0'
+        use-public-rspm: true
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev \
+          libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev \
+          libtiff5-dev libjpeg-dev
+
+    - name: Install R dependencies
+      run: |
+        install.packages("renv")
+        renv::restore()
+        install.packages(c("rsconnect", "rmarkdown", "shiny", "plotly", "DT"))
+      shell: Rscript {0}
+
+    - name: Create deployment directories
+      run: |
+        mkdir -p data/raw data/derived outputs/tables outputs/figures outputs/logs outputs/report
+        mkdir -p shiny_app
+
+    - name: Run analysis and create results
+      run: |
+        # Run the complete analysis
+        Rscript -e "
+          library(nhanesbmi)
+          config <- safe_load_config()
+          ensure_output_dirs(config)
+          datasets <- cached_load_datasets(config)
+          analytic_data <- create_analytic_dataset(datasets, config)
+          svy_design <- create_survey_design(analytic_data, config)
+          correlations <- compute_correlations(svy_design)
+          validation_results <- run_data_validation(datasets, config)
+
+          # Save results for Shiny app
+          results <- list(
+            correlations = correlations,
+            analytic_data = analytic_data,
+            validation_results = validation_results,
+            config = config,
+            timestamp = Sys.time()
+          )
+          saveRDS(results, 'outputs/tables/nhanes_analysis_results.rds')
+        "
+      shell: Rscript {0}
+
+    - name: Create Shiny app
+      run: |
+        Rscript -e "
+          library(nhanesbmi)
+          results <- readRDS('outputs/tables/nhanes_analysis_results.rds')
+          app_dir <- create_standalone_app(
+            'outputs/tables/nhanes_analysis_results.rds',
+            'shiny_app'
+          )
+          cat('Shiny app created in:', app_dir, '\n')
+        "
+      shell: Rscript {0}
+
+    - name: Deploy to shinyapps.io
+      if: github.event_name == 'release' && github.repository == 'altalanta/nhanes-bmi-bodyfat'
+      run: |
+        Rscript -e "
+          library(rsconnect)
+          library(nhanesbmi)
+
+          # Set up rsconnect account (requires secrets)
+          setAccountInfo(
+            name = 'altalanta',
+            token = Sys.getenv('SHINYAPPS_TOKEN'),
+            secret = Sys.getenv('SHINYAPPS_SECRET')
+          )
+
+          # Deploy the app
+          deployApp(
+            appDir = 'shiny_app/app',
+            appName = 'nhanes-bmi-bodyfat',
+            appTitle = 'NHANES BMI vs Body Fat Analysis Dashboard',
+            forceUpdate = TRUE
+          )
+        "
+      env:
+        SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+        SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+
+    - name: Upload Shiny app artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: shiny-app-${{ github.run_number }}
+        path: shiny_app/
+        retention-days: 30
