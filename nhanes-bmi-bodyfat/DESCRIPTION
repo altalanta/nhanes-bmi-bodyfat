@@ -29,7 +29,20 @@ Suggests:
     plotly,
     DT,
     nhanesA,
-    quarto
+    quarto,
+    learnr,
+    bookdown,
+    corrplot,
+    rgl,
+    plumber,
+    RSQLite,
+    haven,
+    ppcor,
+    psych,
+    quantreg,
+    conflicted,
+    profvis,
+    profmem
 URL: https://github.com/altalanta/nhanes-bmi-bodyfat
 BugReports: https://github.com/altalanta/nhanes-bmi-bodyfat/issues
 VignetteBuilder: knitr

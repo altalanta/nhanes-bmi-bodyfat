@@ -1,0 +1,280 @@
+---
+title: "Getting Started with NHANES BMI-Body Fat Analysis"
+author: "NHANES BMI Body Fat Analysis Team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    self_contained: true
+vignette: >
+  %\VignetteIndexEntry{Getting Started}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  dpi = 150,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Load the package
+library(nhanesbmi)
+```
+
+# Introduction
+
+Welcome to the **NHANES BMI-Body Fat Analysis Package** (`nhanesbmi`)! This comprehensive R package provides tools for analyzing the relationship between Body Mass Index (BMI) and whole-body percent body fat using data from the National Health and Nutrition Examination Survey (NHANES) 2017-2018.
+
+This vignette will guide you through the basic usage of the package, from installation to generating your first analysis results.
+
+## What This Package Does
+
+The `nhanesbmi` package offers:
+
+- **Automated Data Fetching**: Downloads and validates NHANES datasets with checksum verification
+- **Comprehensive Analysis**: Survey-weighted statistical methods for BMI-body fat relationships
+- **Interactive Visualization**: Shiny web dashboard for exploring results
+- **Data Quality Assurance**: Automated validation and quality reporting
+- **Performance Optimization**: Intelligent caching and parallel processing
+- **Professional Documentation**: Complete package structure for reproducible research
+
+## Prerequisites
+
+Before using this package, ensure you have:
+
+- R version 4.0.0 or higher
+- Internet connection for downloading NHANES data
+- Sufficient disk space (~100MB for data + cache)
+
+## Installation
+
+### From Source (Development Version)
+
+```r
+# Install from GitHub
+devtools::install_github("altalanta/nhanes-bmi-bodyfat")
+
+# Load the package
+library(nhanesbmi)
+```
+
+### From Local Directory
+
+```r
+# If you have the source code locally
+devtools::install()
+
+# Load the package
+library(nhanesbmi)
+```
+
+## Quick Start: Complete Analysis
+
+The fastest way to get started is to run the complete analysis pipeline:
+
+```r
+# Run complete analysis (downloads data, processes, analyzes, visualizes)
+results <- run_optimized_analysis()
+
+# Launch interactive dashboard
+create_dashboard(results)
+```
+
+This will:
+
+1. **Download** NHANES 2017-2018 datasets (~50MB)
+2. **Validate** data integrity and quality
+3. **Perform** survey-weighted correlation analysis
+4. **Generate** visualizations and reports
+5. **Launch** interactive web dashboard
+
+## Step-by-Step Workflow
+
+For more control over the analysis process:
+
+### 1. Load Configuration
+
+```r
+# Load default configuration
+config <- safe_load_config()
+
+# Or customize configuration
+config$cache_dir <- "my_cache"
+config$parallel_cores <- 4
+```
+
+### 2. Fetch and Validate Data
+
+```r
+# Load NHANES datasets with caching
+datasets <- cached_load_datasets(config)
+
+# Run comprehensive data validation
+validation <- run_data_validation(datasets, config)
+```
+
+### 3. Create Analytic Dataset
+
+```r
+# Merge datasets and apply exclusions
+analytic_data <- create_analytic_dataset(datasets, config)
+
+# Create survey design for weighted analysis
+svy_design <- create_survey_design(analytic_data, config)
+```
+
+### 4. Perform Analysis
+
+```r
+# Compute survey-weighted correlations
+correlations <- compute_correlations(svy_design)
+
+# View results
+print(correlations$overall$correlation)  # Overall correlation
+print(correlations$male$correlation)     # Male-specific
+print(correlations$female$correlation)   # Female-specific
+```
+
+### 5. Generate Visualizations
+
+```r
+# Launch interactive dashboard
+create_dashboard(results)
+
+# Or create standalone app for deployment
+create_standalone_app("outputs/tables/nhanes_analysis_results.rds")
+```
+
+## Understanding the Results
+
+### Correlation Results Structure
+
+```r
+# Access different correlation estimates
+overall_corr <- correlations$overall$correlation
+male_corr <- correlations$male$correlation
+female_corr <- correlations$female$correlation
+
+# Confidence intervals
+ci_lower <- correlations$overall$ci_lower
+ci_upper <- correlations$overall$ci_upper
+
+# Standard errors
+se <- correlations$overall$se
+```
+
+### Data Quality Information
+
+```r
+# Check validation status
+print(validation_results$overall_status)  # "PASSED", "WARNING", or "FAILED"
+
+# View quality reports for each dataset
+quality_reports <- validation_results$quality_reports
+demo_quality <- quality_reports$DEMO_J
+```
+
+## Performance Optimization
+
+The package includes several performance features:
+
+### Caching
+
+```r
+# Enable caching for faster subsequent runs
+results <- run_optimized_analysis(use_cache = TRUE)
+
+# Check cache statistics
+cache_stats <- get_cache_stats()
+print(cache_stats$total_size_mb)  # Cache size in MB
+```
+
+### Parallel Processing
+
+```r
+# Use multiple cores for data validation
+results <- run_optimized_analysis(n_cores = 4)
+```
+
+## Troubleshooting Common Issues
+
+### Data Download Issues
+
+**Problem**: NHANES data download fails
+**Solution**:
+```r
+# Check internet connection and try again
+# Or download manually and place in data/raw/
+```
+
+### Memory Issues
+
+**Problem**: Large datasets cause memory problems
+**Solution**:
+```r
+# Use caching to avoid reloading data
+# Reduce parallel cores if needed
+results <- run_optimized_analysis(n_cores = 2)
+```
+
+### Package Dependencies
+
+**Problem**: Missing required packages
+**Solution**:
+```r
+# Install missing dependencies
+renv::restore()  # If using renv
+# or
+install.packages(c("dplyr", "ggplot2", "survey", "shiny"))
+```
+
+## Next Steps
+
+After completing this getting started guide:
+
+1. **Explore the Dashboard**: Use `create_dashboard()` for interactive exploration
+2. **Customize Analysis**: Modify `config/config.yml` for your specific needs
+3. **Review Advanced Vignettes**: See other vignettes for specialized use cases
+4. **Contribute**: Report issues or suggest improvements on GitHub
+
+## Getting Help
+
+- **GitHub Issues**: [Report bugs or request features](https://github.com/altalanta/nhanes-bmi-bodyfat/issues)
+- **Package Documentation**: `?nhanesbmi` for function reference
+- **Vignettes**: Browse all available vignettes with `browseVignettes("nhanesbmi")`
+
+## Citation
+
+When using this package in your research, please cite:
+
+```bibtex
+@software{nhanes_bmi_bodyfat,
+  title = {NHANES BMI vs Body Fat Analysis Package},
+  author = {NHANES BMI Body Fat Analysis Team},
+  url = {https://github.com/altalanta/nhanes-bmi-bodyfat},
+  year = {2025}
+}
+```
+
+And cite the original NHANES data source:
+
+```bibtex
+@article{nhanes_2017_2018,
+  title = {National Health and Nutrition Examination Survey, 2017-2018},
+  author = {{National Center for Health Statistics}},
+  institution = {Centers for Disease Control and Prevention},
+  year = {2017-2018}
+}
+```
+
+---
+
+*This vignette was generated using `nhanesbmi` version `r packageVersion("nhanesbmi")`*

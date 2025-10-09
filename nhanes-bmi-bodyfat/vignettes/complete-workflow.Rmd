@@ -1,0 +1,433 @@
+---
+title: "Complete Workflow: From Data to Publication"
+author: "NHANES BMI Body Fat Analysis Team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    self_contained: true
+vignette: >
+  %\VignetteIndexEntry{Complete Workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  dpi = 150,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Load the package
+library(nhanesbmi)
+```
+
+# Complete Workflow: From Raw Data to Publication-Ready Results
+
+This vignette demonstrates the complete end-to-end workflow for conducting a comprehensive NHANES BMI-body fat analysis, from initial data acquisition through publication-ready outputs.
+
+## Workflow Overview
+
+The complete workflow consists of 8 main phases:
+
+1. **Environment Setup** - Configure R environment and dependencies
+2. **Data Acquisition** - Download and validate NHANES datasets
+3. **Data Processing** - Clean, merge, and prepare analytic dataset
+4. **Statistical Analysis** - Perform survey-weighted correlation analysis
+5. **Quality Assurance** - Validate results and data integrity
+6. **Visualization** - Create publication-ready figures
+7. **Reporting** - Generate comprehensive analysis reports
+8. **Dissemination** - Deploy interactive dashboard and export results
+
+## Phase 1: Environment Setup
+
+### System Requirements Check
+
+```r
+# Check R version and available memory
+sessionInfo()
+memory.limit()  # Windows
+gc()  # Garbage collection
+
+# Check available disk space
+system("df -h")  # Unix/Linux/Mac
+```
+
+### Package Installation
+
+```r
+# Install development version from GitHub
+devtools::install_github("altalanta/nhanes-bmi-bodyfat")
+
+# Or install from local source
+devtools::install()
+
+# Verify installation
+library(nhanesbmi)
+packageVersion("nhanesbmi")
+```
+
+### Configuration Setup
+
+```r
+# Load default configuration
+config <- safe_load_config()
+
+# Customize for your environment
+config$output_dir <- "my_analysis_outputs"
+config$cache_dir <- "my_cache"
+config$parallel_cores <- parallel::detectCores() - 1  # Use all but one core
+
+# Create output directories
+ensure_output_dirs(config)
+```
+
+## Phase 2: Data Acquisition
+
+### Automated Data Fetching
+
+```r
+# Download NHANES datasets with verification
+datasets <- cached_load_datasets(config, force_refresh = FALSE)
+
+# Verify data integrity
+for (dataset_name in names(datasets)) {
+  cat(sprintf("✓ %s: %d observations, %d variables\n",
+              dataset_name,
+              nrow(datasets[[dataset_name]]),
+              ncol(datasets[[dataset_name]])))
+}
+```
+
+### Manual Data Placement (Alternative)
+
+If automated download fails:
+
+```r
+# Download files manually from CDC website
+# Place in data/raw/ directory:
+# - DEMO_J.XPT (Demographics)
+# - BMX_J.XPT (Body Measures)
+# - DXX_J.XPT (DXA Whole Body)
+# - DXXAG_J.XPT (DXA Android/Gynoid)
+
+# Then load from local files
+config$data_source <- "local"
+datasets <- load_nhanes_datasets(config)
+```
+
+## Phase 3: Data Processing
+
+### Dataset Merging and Cleaning
+
+```r
+# Merge datasets with proper handling of missing data
+analytic_data <- create_analytic_dataset(datasets, config)
+
+# Apply study-specific exclusions
+# Age 20-59 (already applied in create_analytic_dataset)
+# Non-missing BMI and body fat measurements
+# Valid survey design variables
+
+# Check final sample characteristics
+summary(analytic_data$BMXBMI)      # BMI distribution
+summary(analytic_data$bodyfat_pct) # Body fat distribution
+table(analytic_data$RIAGENDR)      # Sex distribution
+```
+
+### Survey Design Creation
+
+```r
+# Create survey design object for weighted analysis
+svy_design <- create_survey_design(analytic_data, config)
+
+# Verify survey design
+print(svy_design)  # Display design summary
+degf(svy_design)   # Degrees of freedom for inference
+```
+
+## Phase 4: Statistical Analysis
+
+### Primary Analysis: BMI-Body Fat Correlation
+
+```r
+# Compute survey-weighted correlations
+correlations <- compute_correlations(svy_design)
+
+# Extract key results
+overall_corr <- correlations$overall$correlation
+overall_ci <- c(correlations$overall$ci_lower, correlations$overall$ci_upper)
+
+male_corr <- correlations$male$correlation
+female_corr <- correlations$female$correlation
+
+# Report results
+cat(sprintf("Overall correlation: %.3f (95%% CI: %.3f-%.3f)\n",
+            overall_corr, overall_ci[1], overall_ci[2]))
+cat(sprintf("Male correlation: %.3f (n=%d)\n", male_corr, correlations$male$n_obs))
+cat(sprintf("Female correlation: %.3f (n=%d)\n", female_corr, correlations$female$n_obs))
+```
+
+### Sensitivity Analyses
+
+```r
+# Age-stratified analysis
+young_design <- subset(svy_design, RIDAGEYR < 40)
+old_design <- subset(svy_design, RIDAGEYR >= 40)
+
+young_corr <- compute_correlations(young_design)
+old_corr <- compute_correlations(old_design)
+
+# BMI category analysis
+normal_design <- subset(svy_design, BMXBMI < 25)
+overweight_design <- subset(svy_design, BMXBMI >= 25 & BMXBMI < 30)
+obese_design <- subset(svy_design, BMXBMI >= 30)
+
+# Additional sensitivity analyses can be implemented here
+```
+
+## Phase 5: Quality Assurance
+
+### Comprehensive Data Validation
+
+```r
+# Run full validation pipeline
+validation_results <- run_data_validation(datasets, config)
+
+# Check overall status
+if (validation_results$overall_status == "PASSED") {
+  cat("✓ All data quality checks passed\n")
+} else {
+  cat("⚠ Data quality issues detected. Review reports.\n")
+}
+
+# Generate quality report
+quality_report_path <- generate_quality_report(
+  validation_results$quality_reports,
+  validation_results$consistency_report,
+  "outputs/reports/data_quality_detailed.html"
+)
+```
+
+### Result Validation
+
+```r
+# Cross-validate with unweighted estimates
+unweighted_corr <- cor(analytic_data$BMXBMI, analytic_data$bodyfat_pct,
+                      use = "complete.obs")
+
+# Compare with survey-weighted results
+cat(sprintf("Unweighted correlation: %.3f\n", unweighted_corr))
+cat(sprintf("Survey-weighted correlation: %.3f\n", overall_corr))
+cat(sprintf("Difference: %.3f\n", overall_corr - unweighted_corr))
+```
+
+## Phase 6: Visualization
+
+### Publication-Ready Figures
+
+```r
+# Create main correlation plot
+correlation_plot <- ggplot(analytic_data, aes(x = BMXBMI, y = bodyfat_pct)) +
+  geom_point(alpha = 0.6, aes(color = factor(RIAGENDR))) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~RIAGENDR, labeller = as_labeller(c("1" = "Male", "2" = "Female"))) +
+  labs(x = "BMI (kg/m²)", y = "Body Fat Percentage (%)",
+       title = "BMI vs Body Fat Percentage by Sex") +
+  theme_minimal()
+
+# Save for publication
+ggsave("outputs/figures/bmi_bodyfat_correlation.png",
+       correlation_plot, width = 10, height = 6, dpi = 300)
+
+# Create additional visualizations as needed
+```
+
+### Interactive Dashboard
+
+```r
+# Launch interactive dashboard for data exploration
+results <- run_optimized_analysis()
+create_dashboard(results, port = 3838)
+```
+
+## Phase 7: Reporting
+
+### Automated Report Generation
+
+```r
+# Generate comprehensive HTML report
+report_path <- generate_analysis_report(results, config,
+                                       "outputs/reports/complete_analysis.html")
+
+# Create summary for stakeholders
+summary_path <- generate_executive_summary(results,
+                                          "outputs/reports/executive_summary.html")
+```
+
+### Statistical Report Structure
+
+A complete analysis report should include:
+
+1. **Executive Summary** - Key findings and implications
+2. **Methods** - Detailed methodology and data sources
+3. **Results** - Statistical findings with confidence intervals
+4. **Discussion** - Interpretation and limitations
+5. **Supplementary Materials** - Detailed tables and additional analyses
+
+## Phase 8: Dissemination
+
+### Export Options
+
+```r
+# Export results in multiple formats
+export_results(results, format = "rds")     # R binary format
+export_results(results, format = "csv")     # Comma-separated values
+export_results(results, format = "json")    # JSON for web APIs
+export_results(results, format = "excel")   # Excel workbook
+
+# Create standalone dashboard for deployment
+app_path <- create_standalone_app(
+  "outputs/tables/nhanes_analysis_results.rds",
+  "nhanes_dashboard"
+)
+
+# Instructions for deployment
+cat("Standalone app created in:", app_path, "\n")
+cat("Deploy with: shiny::runApp('", app_path, "/app')\n", sep = "")
+```
+
+### Version Control and Reproducibility
+
+```r
+# Save complete analysis state for reproducibility
+save_analysis_state <- function(results, config) {
+  state <- list(
+    results = results,
+    config = config,
+    session_info = sessionInfo(),
+    timestamp = Sys.time(),
+    package_versions = installed.packages()[c("nhanesbmi", "dplyr", "survey"), "Version"]
+  )
+  saveRDS(state, "analysis_state_complete.rds")
+}
+
+# Create reproducibility script
+writeLines(c(
+  "# Reproduce this analysis",
+  "library(nhanesbmi)",
+  "results <- run_optimized_analysis()",
+  "create_dashboard(results)"
+), "reproduce_analysis.R")
+```
+
+## Quality Control Checklist
+
+Before finalizing your analysis:
+
+- [ ] **Data Quality**: All validation checks pass
+- [ ] **Statistical Assumptions**: Survey design properly specified
+- [ ] **Result Interpretation**: Confidence intervals and p-values reported
+- [ ] **Reproducibility**: Code and data archived for future reference
+- [ ] **Documentation**: Methods and results clearly documented
+- [ ] **Ethics**: Appropriate use of human subjects data
+
+## Performance Monitoring
+
+### Execution Time Tracking
+
+```r
+# Monitor overall execution time
+start_time <- Sys.time()
+
+# Run complete pipeline
+results <- run_optimized_analysis()
+
+end_time <- Sys.time()
+total_time <- as.numeric(difftime(end_time, start_time, units = "mins"))
+cat(sprintf("Total execution time: %.1f minutes\n", total_time))
+
+# Check cache performance
+cache_stats <- get_cache_stats()
+cat(sprintf("Cache size: %.1f MB\n", cache_stats$total_size_mb))
+```
+
+### Resource Usage
+
+```r
+# Monitor memory usage
+memory_usage <- gc()
+cat(sprintf("Memory used: %.1f MB\n", memory_usage["used", 3]))
+
+# Check parallel processing efficiency
+if (results$performance_info$parallel_cores > 1) {
+  cat(sprintf("Parallel processing: %d cores\n",
+              results$performance_info$parallel_cores))
+}
+```
+
+## Troubleshooting Workflow Issues
+
+### Common Issues and Solutions
+
+#### Slow Performance
+
+```r
+# Enable caching and increase parallel cores
+results <- run_optimized_analysis(use_cache = TRUE, n_cores = 4)
+```
+
+#### Memory Issues
+
+```r
+# Reduce memory usage
+results <- run_optimized_analysis(n_cores = 2)  # Fewer cores
+# Clear cache if needed
+clean_cache()
+```
+
+#### Data Download Problems
+
+```r
+# Try manual download or use local files
+# Check internet connection and firewall settings
+```
+
+## Next Steps After Workflow
+
+1. **Customize Analysis**: Modify `config/config.yml` for your specific research questions
+2. **Extend Methods**: Add domain-specific analyses or additional statistical tests
+3. **Collaborate**: Share results via GitHub or deploy dashboard for team access
+4. **Publish**: Prepare manuscript using generated reports and visualizations
+
+## Advanced Workflow Extensions
+
+For more sophisticated analyses:
+
+```r
+# Longitudinal analysis (if panel data available)
+longitudinal_results <- run_longitudinal_analysis(data, time_var = "wave")
+
+# Bayesian analysis for uncertainty quantification
+bayesian_results <- run_bayesian_correlation(data)
+
+# Machine learning integration
+ml_results <- run_ml_analysis(data, methods = c("random_forest", "xgboost"))
+```
+
+## Session Information
+
+```{r session-info}
+sessionInfo()
+```
+
+---
+
+*This workflow vignette demonstrates the complete analysis pipeline using `nhanesbmi` version `r packageVersion("nhanesbmi")`*

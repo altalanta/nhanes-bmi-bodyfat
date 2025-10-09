@@ -1,0 +1,563 @@
+---
+title: "Troubleshooting Guide: Common Issues and Solutions"
+author: "NHANES BMI Body Fat Analysis Team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    self_contained: true
+vignette: >
+  %\VignetteIndexEntry{Troubleshooting Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  dpi = 150,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Load the package
+library(nhanesbmi)
+```
+
+# Troubleshooting Guide: Common Issues and Solutions
+
+This comprehensive troubleshooting guide addresses the most common issues users encounter when using the `nhanesbmi` package, along with step-by-step solutions and preventive measures.
+
+## Issue Categories
+
+1. **Installation and Setup Issues**
+2. **Data Download and Access Problems**
+3. **Analysis and Computation Errors**
+4. **Performance and Memory Issues**
+5. **Visualization and Dashboard Problems**
+6. **Package Dependency Conflicts**
+
+## 1. Installation and Setup Issues
+
+### Problem: Package Installation Fails
+
+**Symptoms**:
+- `devtools::install_github()` returns errors
+- Package not found after installation
+- Version conflicts with dependencies
+
+**Solutions**:
+
+```r
+# Check R version compatibility
+R.version.string
+
+# Install from local source if GitHub fails
+devtools::install()  # If source code is available locally
+
+# Install specific dependencies first
+install.packages(c("remotes", "devtools"))
+remotes::install_github("altalanta/nhanes-bmi-bodyfat", dependencies = TRUE)
+
+# Force reinstall if needed
+devtools::install_github("altalanta/nhanes-bmi-bodyfat",
+                        force = TRUE, dependencies = TRUE)
+```
+
+**Prevention**:
+- Ensure R version 4.0.0 or higher
+- Install `remotes` package for better GitHub installation
+- Check internet connection and firewall settings
+
+### Problem: renv Environment Issues
+
+**Symptoms**:
+- `renv::restore()` fails or hangs
+- Package version conflicts
+- Missing dependencies after restore
+
+**Solutions**:
+
+```r
+# Check renv status
+renv::status()
+
+# Clean and restore environment
+renv::clean()
+renv::restore()
+
+# Update lockfile if needed
+renv::update()
+renv::snapshot()
+
+# Manual dependency installation
+renv::install(c("dplyr", "survey", "ggplot2", "shiny"))
+```
+
+**Prevention**:
+- Run `renv::restore()` immediately after cloning
+- Avoid mixing renv and manual package installations
+- Update lockfile when adding new dependencies
+
+## 2. Data Download and Access Problems
+
+### Problem: NHANES Data Download Fails
+
+**Symptoms**:
+- `cached_load_datasets()` throws network errors
+- Timeout during large file downloads
+- "Connection refused" or "DNS resolution failed"
+
+**Solutions**:
+
+```r
+# Check internet connection
+curl::curl_download("https://www.cdc.gov", tempfile())
+
+# Try manual download approach
+# 1. Download files manually from CDC website
+# 2. Place in data/raw/ directory
+# 3. Use local data source
+
+config <- safe_load_config()
+config$data_source <- "local"  # Force local data use
+datasets <- load_nhanes_datasets(config)
+
+# Retry with force refresh
+datasets <- cached_load_datasets(config, force_refresh = TRUE)
+```
+
+**Prevention**:
+- Check internet connection and firewall settings
+- Consider downloading during off-peak hours
+- Use local data files for repeated analyses
+
+### Problem: File Path or Permission Issues
+
+**Symptoms**:
+- "Permission denied" errors when creating directories
+- Files not found despite being present
+- Path-related errors on different operating systems
+
+**Solutions**:
+
+```r
+# Check and create directories explicitly
+ensure_output_dirs(config)
+
+# Use absolute paths if relative paths fail
+config$data_raw_path <- "/full/path/to/data/raw"
+config$outputs_tables_path <- "/full/path/to/outputs/tables"
+
+# Check file permissions
+Sys.chmod(config$data_raw_path, mode = "0777", use_umask = FALSE)
+
+# Run with administrative privileges if needed
+# (Windows: Run as Administrator, macOS/Linux: use sudo)
+```
+
+**Prevention**:
+- Ensure write permissions in working directory
+- Use consistent path formats (forward slashes on all platforms)
+- Avoid special characters in directory names
+
+## 3. Analysis and Computation Errors
+
+### Problem: Survey Design Creation Fails
+
+**Symptoms**:
+- `create_survey_design()` throws errors about missing variables
+- "Variable not found" errors during analysis
+- Survey design object creation fails
+
+**Solutions**:
+
+```r
+# Check variable names in your data
+names(analytic_data)
+
+# Verify required survey design variables exist
+required_vars <- c(config$survey_weights_col, config$strata_col, config$psu_col)
+missing_vars <- setdiff(required_vars, names(analytic_data))
+
+if (length(missing_vars) > 0) {
+  cat("Missing survey design variables:", missing_vars, "\n")
+  # Fix variable names or check data merging
+}
+
+# Alternative survey design specification
+svy_design <- svydesign(
+  ids = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC2YR,
+  nest = TRUE,
+  data = analytic_data
+)
+```
+
+**Prevention**:
+- Always run data validation before analysis: `run_data_validation(datasets, config)`
+- Check variable names consistency across datasets
+- Verify survey design variable availability in DEMO dataset
+
+### Problem: Correlation Computation Errors
+
+**Symptoms**:
+- `compute_correlations()` fails with "singular matrix" errors
+- NaN or infinite correlation values
+- Standard error calculation problems
+
+**Solutions**:
+
+```r
+# Check for data issues
+summary(analytic_data$BMXBMI)
+summary(analytic_data$bodyfat_pct)
+
+# Remove problematic observations
+analytic_data <- analytic_data %>%
+  filter(!is.na(BMXBMI) & !is.na(bodyfat_pct) &
+         BMXBMI > 0 & bodyfat_pct > 0)
+
+# Check for multicollinearity or constant variables
+cor_matrix <- cor(analytic_data[, c("BMXBMI", "bodyfat_pct")], use = "complete.obs")
+if (any(is.na(cor_matrix)) || any(diag(cor_matrix) == 0)) {
+  cat("Data quality issues detected\n")
+}
+
+# Alternative correlation calculation
+manual_corr <- cor(analytic_data$BMXBMI, analytic_data$bodyfat_pct, use = "complete.obs")
+cat(sprintf("Manual correlation: %.3f\n", manual_corr))
+```
+
+**Prevention**:
+- Always validate data before analysis
+- Check for reasonable value ranges
+- Remove observations with missing or invalid values
+
+## 4. Performance and Memory Issues
+
+### Problem: Slow Performance or Timeouts
+
+**Symptoms**:
+- Analysis takes excessively long time
+- Timeout errors during data processing
+- High memory usage warnings
+
+**Solutions**:
+
+```r
+# Enable caching to speed up repeated analyses
+results <- run_optimized_analysis(use_cache = TRUE)
+
+# Use parallel processing (if available)
+results <- run_optimized_analysis(n_cores = 2)  # Reduce if causing issues
+
+# Monitor and limit memory usage
+memory.limit(size = 8000)  # Windows: set memory limit
+
+# Process data in chunks if needed
+chunk_size <- 1000
+results_list <- list()
+for (i in seq(1, nrow(analytic_data), chunk_size)) {
+  chunk <- analytic_data[i:min(i + chunk_size - 1, nrow(analytic_data)), ]
+  # Process chunk...
+}
+```
+
+**Prevention**:
+- Enable caching for repeated analyses
+- Use appropriate number of cores (don't exceed available cores)
+- Monitor memory usage and adjust chunk sizes
+
+### Problem: Out of Memory Errors
+
+**Symptoms**:
+- R crashes with memory errors
+- "Cannot allocate vector of size" messages
+- System becomes unresponsive
+
+**Solutions**:
+
+```r
+# Clear memory and run garbage collection
+gc()
+memory.size(max = FALSE)  # Check current memory usage
+
+# Reduce data size or use sampling
+set.seed(123)
+sample_data <- analytic_data[sample(nrow(analytic_data), 10000), ]
+
+# Process in smaller batches
+batch_size <- 5000
+for (i in seq(1, nrow(analytic_data), batch_size)) {
+  batch <- analytic_data[i:min(i + batch_size - 1, nrow(analytic_data)), ]
+  # Process batch and save intermediate results
+}
+
+# Use disk-based processing for large datasets
+saveRDS(analytic_data, "temp_large_data.rds")
+# Process in chunks, loading/saving as needed
+```
+
+**Prevention**:
+- Monitor memory usage before running large analyses
+- Use sampling for exploratory analyses
+- Process data in manageable chunks
+- Close unused R sessions and clear workspace
+
+## 5. Visualization and Dashboard Problems
+
+### Problem: Dashboard Launch Fails
+
+**Symptoms**:
+- `create_dashboard()` throws errors
+- Shiny app fails to start
+- Port conflicts or binding issues
+
+**Solutions**:
+
+```r
+# Check if required packages are installed
+required_packages <- c("shiny", "plotly", "DT")
+missing_packages <- setdiff(required_packages, installed.packages()[, "Package"])
+
+if (length(missing_packages) > 0) {
+  install.packages(missing_packages)
+}
+
+# Try different port if 3838 is occupied
+create_dashboard(results, port = 3839)
+
+# Run in browser manually
+shiny::runApp(shinyApp(ui = dashboard_ui(...), server = dashboard_server(...)),
+             port = 3838, launch.browser = TRUE)
+```
+
+**Prevention**:
+- Ensure all suggested packages are installed
+- Check for port conflicts before launching
+- Use `launch_browser = FALSE` for headless environments
+
+### Problem: Plot Rendering Issues
+
+**Symptoms**:
+- Plots fail to display in dashboard
+- Empty or broken visualizations
+- JavaScript errors in browser console
+
+**Solutions**:
+
+```r
+# Check data dimensions for plotting
+dim(results$analytic_data)
+
+# Verify required variables exist
+required_plot_vars <- c("BMXBMI", "bodyfat_pct", "RIAGENDR")
+missing_plot_vars <- setdiff(required_plot_vars, names(results$analytic_data))
+
+if (length(missing_plot_vars) > 0) {
+  cat("Missing plotting variables:", missing_plot_vars, "\n")
+}
+
+# Alternative plotting approach
+if (interactive()) {
+  # Use base R plots as fallback
+  plot(results$analytic_data$BMXBMI, results$analytic_data$bodyfat_pct)
+}
+```
+
+**Prevention**:
+- Validate data structure before visualization
+- Check for missing required variables
+- Test plots individually before dashboard integration
+
+## 6. Package Dependency Conflicts
+
+### Problem: Version Conflicts Between Packages
+
+**Symptoms**:
+- Package loading fails with version errors
+- Functions behave unexpectedly due to API changes
+- Installation warnings about version mismatches
+
+**Solutions**:
+
+```r
+# Check package versions
+packageVersion("dplyr")
+packageVersion("survey")
+packageVersion("ggplot2")
+
+# Update conflicting packages
+install.packages(c("dplyr", "survey", "ggplot2"))
+
+# Use specific package versions if needed
+remotes::install_version("dplyr", version = "1.1.0")
+
+# Check for namespace conflicts
+conflicts(detail = TRUE)  # From conflicted package
+```
+
+**Prevention**:
+- Use `renv` for reproducible environments
+- Update packages regularly but carefully
+- Document package version requirements
+
+### Problem: Missing System Dependencies
+
+**Symptoms**:
+- Installation fails with compilation errors
+- Missing libraries or headers on system
+- Platform-specific issues (Windows vs macOS vs Linux)
+
+**Solutions**:
+
+```r
+# Check system dependencies
+capabilities()  # R capabilities
+
+# Install system libraries (Ubuntu/Debian)
+sudo apt-get update
+sudo apt-get install libcurl4-openssl-dev libssl-dev libxml2-dev
+
+# Install system libraries (macOS with Homebrew)
+brew install curl openssl
+
+# Install system libraries (Windows with Rtools)
+# Ensure Rtools is properly installed and in PATH
+```
+
+**Prevention**:
+- Install required system dependencies before R packages
+- Use containerized environments (Docker) for consistency
+- Check platform-specific requirements in package documentation
+
+## Advanced Troubleshooting
+
+### Creating Debug Information
+
+```r
+# Generate comprehensive debug report
+create_debug_report <- function() {
+  debug_info <- list(
+    session_info = sessionInfo(),
+    package_versions = installed.packages()[c("nhanesbmi", "dplyr", "survey", "ggplot2"), "Version"],
+    system_info = Sys.info(),
+    memory_info = gc(),
+    data_summary = list(
+      sample_size = nrow(results$analytic_data),
+      variables = names(results$analytic_data),
+      missing_summary = colSums(is.na(results$analytic_data))
+    ),
+    config_summary = config,
+    error_log = if (file.exists("outputs/logs/analysis.log")) {
+      readLines("outputs/logs/analysis.log", warn = FALSE)
+    } else {
+      "No log file found"
+    }
+  )
+
+  saveRDS(debug_info, "debug_report.rds")
+  return(debug_info)
+}
+
+# Use when reporting issues
+debug_report <- create_debug_report()
+```
+
+### Performance Profiling
+
+```r
+# Profile slow operations
+profvis::profvis({
+  results <- run_optimized_analysis()
+})
+
+# Memory profiling
+profmem::profmem({
+  results <- run_optimized_analysis()
+})
+```
+
+## Getting Help
+
+When troubleshooting fails:
+
+1. **Check this guide** for your specific error message
+2. **Search GitHub issues** for similar problems
+3. **Create minimal reproducible example** for bug reports
+4. **Include debug information** when asking for help
+
+### Reporting Issues
+
+When creating GitHub issues, include:
+
+- **Clear description** of the problem
+- **Steps to reproduce** the issue
+- **Expected vs actual behavior**
+- **Debug report** (see above)
+- **R session information** and package versions
+- **Operating system and R version**
+
+## Quick Diagnostic Commands
+
+```r
+# Quick system check
+quick_diagnostic <- function() {
+  cat("=== NHANES BMI Package Diagnostic ===\n")
+  cat(sprintf("R version: %s\n", R.version.string))
+  cat(sprintf("Platform: %s\n", Sys.info()["sysname"]))
+  cat(sprintf("Memory available: %.1f GB\n", memory.limit()/1024))
+
+  # Check package installation
+  packages <- c("nhanesbmi", "dplyr", "survey", "ggplot2", "shiny")
+  for (pkg in packages) {
+    if (requireNamespace(pkg, quietly = TRUE)) {
+      cat(sprintf("✓ %s: %s\n", pkg, packageVersion(pkg)))
+    } else {
+      cat(sprintf("✗ %s: NOT INSTALLED\n", pkg))
+    }
+  }
+
+  # Check data availability
+  if (file.exists("outputs/tables/nhanes_analysis_results.rds")) {
+    cat("✓ Analysis results available\n")
+  } else {
+    cat("✗ No analysis results found\n")
+  }
+}
+
+# Run diagnostic
+quick_diagnostic()
+```
+
+## Prevention Best Practices
+
+1. **Always validate data** before analysis
+2. **Use caching** for repeated analyses
+3. **Monitor memory usage** for large datasets
+4. **Test on small samples** before full analysis
+5. **Keep packages updated** but maintain version consistency
+6. **Document your environment** for reproducibility
+7. **Use version control** for code and configuration
+
+## Common Error Messages and Solutions
+
+| Error Message | Likely Cause | Quick Fix |
+|---------------|-------------|-----------|
+| "Package not found" | Installation failed | Reinstall with dependencies |
+| "Variable not found" | Data merging issue | Check dataset variable names |
+| "Memory allocation failed" | Dataset too large | Use sampling or chunking |
+| "Port already in use" | Dashboard conflict | Use different port number |
+| "SSL connection error" | Network/firewall issue | Check internet connection |
+| "Survey design error" | Invalid design variables | Validate survey variables |
+
+---
+
+*This troubleshooting guide provides solutions for common issues using `nhanesbmi` version `r packageVersion("nhanesbmi")`*

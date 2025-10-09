@@ -1,0 +1,782 @@
+---
+title: "Advanced Features: Extending and Customizing Analysis"
+author: "NHANES BMI Body Fat Analysis Team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    self_contained: true
+vignette: >
+  %\VignetteIndexEntry{Advanced Features}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  dpi = 150,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Load the package
+library(nhanesbmi)
+```
+
+# Advanced Features: Extending and Customizing Analysis
+
+This vignette demonstrates advanced features and customization options for power users who want to extend the `nhanesbmi` package beyond basic analysis workflows.
+
+## Custom Configuration Management
+
+### Advanced Configuration Options
+
+```r
+# Load base configuration
+config <- safe_load_config()
+
+# Customize for specific research needs
+config$cache_dir <- "research_cache"
+config$parallel_cores <- 8
+config$log_level <- "DEBUG"
+
+# Age range customization
+config$age_range <- c(18, 80)  # Extended age range
+
+# BMI filtering
+config$bmi_filter <- c(15, 50)  # Custom BMI range
+
+# Survey design parameters
+config$survey_weights_col <- "WTMEC4YR"  # 4-year weights
+config$strata_col <- "SDMVSTRA"
+config$psu_col <- "SDMVPSU"
+
+# Output customization
+config$outputs_tables_path <- "outputs/research_tables"
+config$outputs_figures_path <- "outputs/research_figures"
+
+# Create custom configuration file
+custom_config <- list(
+  data = list(
+    raw_dir = "data/custom_raw",
+    derived_dir = "data/custom_derived"
+  ),
+  outputs = list(
+    tables_dir = "outputs/custom_tables",
+    figures_dir = "outputs/custom_figures",
+    logs_dir = "outputs/custom_logs",
+    report_dir = "outputs/custom_reports"
+  ),
+  analysis = list(
+    age_range = c(20, 65),
+    survey_weights_col = "WTMEC2YR",
+    strata_col = "SDMVSTRA",
+    psu_col = "SDMVPSU"
+  ),
+  logging = list(
+    level = "INFO",
+    file = "custom_analysis.log"
+  )
+)
+
+# Save custom configuration
+yaml::write_yaml(custom_config, "config/custom_research.yml")
+```
+
+## Custom Data Processing Pipelines
+
+### Advanced Data Cleaning and Transformation
+
+```r
+# Custom data preprocessing function
+preprocess_nhanes_data <- function(datasets, config) {
+
+  # Load datasets
+  demo <- safe_read_xpt(config$nhanes_demo_path, "DEMO_J dataset")
+  bmx <- safe_read_xpt(config$nhanes_bmx_path, "BMX_J dataset")
+  dxx <- safe_read_xpt(config$nhanes_dxx_path, "DXX_J dataset")
+
+  # Custom merging logic
+  merged_data <- demo %>%
+    left_join(bmx, by = "SEQN") %>%
+    left_join(dxx, by = "SEQN")
+
+  # Custom exclusions
+  # Remove pregnant women (if pregnancy data available)
+  if ("RIDEXPRG" %in% names(merged_data)) {
+    merged_data <- merged_data %>%
+      filter(RIDEXPRG != 1)  # Not pregnant
+  }
+
+  # Custom BMI categories
+  merged_data <- merged_data %>%
+    mutate(
+      bmi_category = case_when(
+        BMXBMI < 18.5 ~ "Underweight",
+        BMXBMI >= 18.5 & BMXBMI < 25 ~ "Normal",
+        BMXBMI >= 25 & BMXBMI < 30 ~ "Overweight",
+        BMXBMI >= 30 ~ "Obese"
+      ),
+      bmi_category = factor(bmi_category,
+                           levels = c("Underweight", "Normal", "Overweight", "Obese"))
+    )
+
+  # Custom age groups
+  merged_data <- merged_data %>%
+    mutate(
+      age_group = case_when(
+        RIDAGEYR >= 20 & RIDAGEYR < 40 ~ "Young Adult",
+        RIDAGEYR >= 40 & RIDAGEYR < 60 ~ "Middle Age",
+        RIDAGEYR >= 60 ~ "Older Adult"
+      ),
+      age_group = factor(age_group,
+                        levels = c("Young Adult", "Middle Age", "Older Adult"))
+    )
+
+  return(merged_data)
+}
+
+# Use custom preprocessing
+custom_data <- preprocess_nhanes_data(datasets, config)
+```
+
+### Custom Variable Derivation
+
+```r
+# Derive additional variables for analysis
+derive_additional_variables <- function(data) {
+
+  data %>%
+    mutate(
+      # Body fat percentage categories
+      bodyfat_category = case_when(
+        bodyfat_pct < 10 ~ "Very Low",
+        bodyfat_pct >= 10 & bodyfat_pct < 20 ~ "Low",
+        bodyfat_pct >= 20 & bodyfat_pct < 30 ~ "Normal",
+        bodyfat_pct >= 30 ~ "High"
+      ),
+
+      # BMI-body fat discordance score
+      predicted_bodyfat = predict(lm(bodyfat_pct ~ BMXBMI, data = data)),
+      discordance_score = bodyfat_pct - predicted_bodyfat,
+
+      # Z-scores for standardization
+      bmi_zscore = scale(BMXBMI),
+      bodyfat_zscore = scale(bodyfat_pct),
+
+      # Composite health metrics
+      health_risk_score = case_when(
+        BMXBMI >= 30 & bodyfat_pct >= 25 ~ "High Risk",
+        BMXBMI >= 25 & bodyfat_pct >= 20 ~ "Moderate Risk",
+        TRUE ~ "Low Risk"
+      )
+    )
+}
+
+# Apply custom derivations
+enhanced_data <- derive_additional_variables(custom_data)
+```
+
+## Advanced Statistical Methods
+
+### Custom Correlation Analysis
+
+```r
+# Custom correlation function with additional statistics
+custom_correlation_analysis <- function(data, variables, weights = NULL) {
+
+  # Basic correlation matrix
+  cor_matrix <- cor(data[, variables], use = "complete.obs")
+
+  # Weighted correlation (if weights provided)
+  if (!is.null(weights)) {
+    weighted_cor <- cov.wt(data[, variables], wt = weights)$cor
+  } else {
+    weighted_cor <- cor_matrix
+  }
+
+  # Partial correlations
+  partial_cor <- ppcor::pcor(data[, variables])$estimate
+
+  # Correlation significance testing
+  cor_test <- psych::corr.test(data[, variables])
+
+  return(list(
+    basic = cor_matrix,
+    weighted = weighted_cor,
+    partial = partial_cor,
+    significance = cor_test
+  ))
+}
+
+# Example usage
+correlation_results <- custom_correlation_analysis(
+  enhanced_data,
+  c("BMXBMI", "bodyfat_pct", "discordance_score"),
+  enhanced_data[[config$survey_weights_col]]
+)
+```
+
+### Advanced Regression Models
+
+```r
+# Custom regression modeling function
+fit_advanced_models <- function(data, outcome_var, predictor_vars, config) {
+
+  # Linear regression
+  lm_formula <- as.formula(paste(outcome_var, "~",
+                                paste(predictor_vars, collapse = " + ")))
+  lm_model <- lm(lm_formula, data = data)
+
+  # Survey-weighted linear regression
+  svy_formula <- as.formula(paste(outcome_var, "~",
+                                 paste(predictor_vars, collapse = " + ")))
+  svy_lm_model <- svyglm(svy_formula, design = create_survey_design(data, config))
+
+  # Quantile regression for robust estimates
+  rq_model <- quantreg::rq(lm_formula, data = data, tau = c(0.25, 0.5, 0.75))
+
+  # Mixed effects model (if longitudinal data available)
+  # lme_model <- nlme::lme(lm_formula, random = ~1 | subject_id, data = data)
+
+  return(list(
+    linear = lm_model,
+    survey_weighted = svy_lm_model,
+    quantile = rq_model
+    # longitudinal = lme_model  # Uncomment if longitudinal data available
+  ))
+}
+
+# Example: Predict body fat from multiple anthropometric measures
+if ("BMXWAIST" %in% names(enhanced_data)) {
+  regression_results <- fit_advanced_models(
+    enhanced_data,
+    "bodyfat_pct",
+    c("BMXBMI", "BMXWAIST", "RIAGENDR", "RIDAGEYR"),
+    config
+  )
+
+  # Model comparison
+  model_summary <- lapply(regression_results, summary)
+  aic_values <- lapply(regression_results, AIC)
+}
+```
+
+## Custom Visualization Functions
+
+### Advanced Plotting Capabilities
+
+```r
+# Custom correlation heatmap function
+create_correlation_heatmap <- function(data, variables, method = "pearson") {
+
+  # Calculate correlation matrix
+  cor_matrix <- cor(data[, variables], use = "complete.obs", method = method)
+
+  # Create heatmap
+  corrplot::corrplot(cor_matrix,
+                    method = "color",
+                    type = "upper",
+                    order = "hclust",
+                    tl.col = "black",
+                    tl.srt = 45,
+                    addCoef.col = "black",
+                    diag = FALSE,
+                    title = paste("Correlation Heatmap (", method, " method)"))
+
+  return(cor_matrix)
+}
+
+# Example usage
+if (requireNamespace("corrplot", quietly = TRUE)) {
+  correlation_heatmap <- create_correlation_heatmap(
+    enhanced_data,
+    c("BMXBMI", "bodyfat_pct", "discordance_score", "bmi_zscore", "bodyfat_zscore")
+  )
+}
+```
+
+### Interactive 3D Visualizations
+
+```r
+# 3D scatter plot for complex relationships
+create_3d_visualization <- function(data, x_var, y_var, z_var, color_var = NULL) {
+
+  if (!requireNamespace("plotly", quietly = TRUE) ||
+      !requireNamespace("rgl", quietly = TRUE)) {
+    warning("Required packages for 3D visualization not available")
+    return(NULL)
+  }
+
+  # Create 3D scatter plot
+  plotly_3d <- plotly::plot_ly(data = data,
+                              x = ~get(x_var),
+                              y = ~get(y_var),
+                              z = ~get(z_var),
+                              color = if (!is.null(color_var)) ~get(color_var) else NULL,
+                              type = "scatter3d",
+                              mode = "markers",
+                              marker = list(size = 3, opacity = 0.6)) %>%
+    plotly::layout(
+      title = paste("3D Visualization:", x_var, "vs", y_var, "vs", z_var),
+      scene = list(
+        xaxis = list(title = x_var),
+        yaxis = list(title = y_var),
+        zaxis = list(title = z_var)
+      )
+    )
+
+  return(plotly_3d)
+}
+
+# Example: 3D visualization of BMI, body fat, and age
+if (requireNamespace("plotly", quietly = TRUE)) {
+  plot_3d <- create_3d_visualization(
+    enhanced_data,
+    "BMXBMI", "bodyfat_pct", "RIDAGEYR", "RIAGENDR"
+  )
+}
+```
+
+## Custom Reporting and Export Functions
+
+### Advanced Report Generation
+
+```r
+# Custom report with multiple analysis components
+generate_comprehensive_report <- function(results, config, output_file = NULL) {
+
+  if (is.null(output_file)) {
+    output_file <- "outputs/reports/comprehensive_analysis.html"
+  }
+
+  # Create R Markdown content
+  report_content <- paste0("
+---
+title: 'Comprehensive NHANES BMI-Body Fat Analysis'
+author: 'Research Team'
+date: '", Sys.Date(), "'
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: cosmo
+    highlight: tango
+    code_folding: show
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+library(nhanesbmi)
+library(ggplot2)
+library(dplyr)
+library(survey)
+library(kableExtra)
+
+# Load results
+results <- readRDS('", results, "')
+config <- safe_load_config()
+```
+
+# Executive Summary
+
+## Key Findings
+
+- **Overall Correlation**: `r round(results$correlations$overall$correlation, 3)`
+- **Male Correlation**: `r round(results$correlations$male$correlation, 3)`
+- **Female Correlation**: `r round(results$correlations$female$correlation, 3)`
+- **Sample Size**: `r results$correlations$sample_size`
+
+## Methods
+
+- **Data Source**: NHANES 2017-2018
+- **Age Range**: `r config$age_range[1]` - `r config$age_range[2]` years
+- **Statistical Method**: Survey-weighted correlation analysis
+- **Software**: nhanesbmi v`r packageVersion('nhanesbmi')`
+
+# Detailed Results
+
+## Correlation Analysis
+
+```{r correlation-table}
+# Create correlation summary table
+corr_summary <- data.frame(
+  Group = c('Overall', 'Male', 'Female'),
+  Correlation = c(results$correlations$overall$correlation,
+                 results$correlations$male$correlation,
+                 results$correlations$female$correlation),
+  CI_Lower = c(results$correlations$overall$ci_lower,
+              NA, NA),  # Add male/female CIs if available
+  CI_Upper = c(results$correlations$overall$ci_upper,
+              NA, NA),
+  Sample_Size = c(results$correlations$sample_size,
+                 results$correlations$male$n_obs,
+                 results$correlations$female$n_obs)
+)
+
+kable(corr_summary, digits = 3,
+      caption = 'BMI-Body Fat Correlation Results') %>%
+  kable_styling(bootstrap_options = c('striped', 'hover'))
+```
+
+## Data Quality Assessment
+
+```{r quality-summary}
+# Include data quality information
+validation <- results$validation_results
+```
+
+## Visualizations
+
+```{r main-plot}
+# Include main correlation plot
+ggplot(results$analytic_data, aes(x = BMXBMI, y = bodyfat_pct)) +
+  geom_point(alpha = 0.6, aes(color = factor(RIAGENDR))) +
+  geom_smooth(method = 'lm', se = TRUE) +
+  facet_wrap(~RIAGENDR) +
+  labs(x = 'BMI (kg/m²)', y = 'Body Fat Percentage (%)',
+       title = 'BMI vs Body Fat Percentage by Sex') +
+  theme_minimal()
+```
+
+# Discussion
+
+## Interpretation
+
+The strong correlation between BMI and body fat percentage (r = `r round(results$correlations$overall$correlation, 3)`) indicates that BMI remains a reasonable proxy for body fat in this population. However, individual variation suggests the need for direct body composition assessment in clinical settings.
+
+## Limitations
+
+- Cross-sectional design limits causal inference
+- Single NHANES cycle may not represent temporal trends
+- Self-reported data subject to recall bias
+
+## Future Directions
+
+- Longitudinal analysis across multiple NHANES cycles
+- Integration with clinical outcome data
+- Advanced body composition modeling
+
+# Supplementary Materials
+
+## Analysis Configuration
+
+```{r config-display}
+# Display analysis configuration
+str(config)
+```
+
+## Session Information
+
+```{r session-info}
+sessionInfo()
+```
+
+---
+")
+
+  # Write and render report
+  writeLines(report_content, "comprehensive_report.Rmd")
+  rmarkdown::render("comprehensive_report.Rmd", output_file = output_file)
+
+  return(output_file)
+}
+
+# Generate comprehensive report
+# report_path <- generate_comprehensive_report(results, config)
+```
+
+## Performance Optimization Extensions
+
+### Custom Caching Strategies
+
+```r
+# Custom caching for specific analysis types
+custom_cache_strategy <- function(analysis_type, data_hash, results) {
+
+  cache_key <- paste(analysis_type, data_hash, sep = "_")
+
+  # Check cache
+  cached_result <- check_cache(cache_key)
+  if (!is.null(cached_result)) {
+    return(cached_result)
+  }
+
+  # Perform analysis
+  analysis_result <- switch(analysis_type,
+    "correlation" = compute_correlations(data),
+    "regression" = fit_advanced_models(data),
+    "validation" = run_data_validation(data),
+    stop("Unknown analysis type")
+  )
+
+  # Cache result
+  save_to_cache(cache_key, analysis_result)
+
+  return(analysis_result)
+}
+
+# Usage
+correlation_cache_key <- generate_cache_key("correlation",
+                                           digest::digest(results$analytic_data))
+cached_correlations <- custom_cache_strategy("correlation",
+                                           correlation_cache_key,
+                                           results$analytic_data)
+```
+
+### Parallel Processing Extensions
+
+```r
+# Custom parallel processing for intensive computations
+parallel_bootstrap_analysis <- function(data, n_bootstraps = 1000, n_cores = 4) {
+
+  if (!requireNamespace("parallel", quietly = TRUE)) {
+    stop("Parallel package required for bootstrap analysis")
+  }
+
+  # Create cluster
+  cl <- parallel::makeCluster(n_cores)
+
+  # Export required objects
+  parallel::clusterExport(cl, c("data", "compute_correlations"),
+                         envir = environment())
+
+  # Run bootstrap in parallel
+  bootstrap_results <- parallel::parLapply(cl, 1:n_bootstraps, function(i) {
+    # Resample data
+    sample_data <- data[sample(nrow(data), replace = TRUE), ]
+
+    # Create survey design for bootstrap sample
+    svy_design_boot <- create_survey_design(sample_data, config)
+
+    # Compute correlations for bootstrap sample
+    correlations_boot <- compute_correlations(svy_design_boot)
+
+    return(correlations_boot$overall$correlation)
+  })
+
+  # Stop cluster
+  parallel::stopCluster(cl)
+
+  # Calculate bootstrap statistics
+  bootstrap_correlations <- unlist(bootstrap_results)
+  bootstrap_ci <- quantile(bootstrap_correlations, c(0.025, 0.975))
+
+  return(list(
+    bootstrap_correlations = bootstrap_correlations,
+    ci_lower = bootstrap_ci[1],
+    ci_upper = bootstrap_ci[2],
+    mean_correlation = mean(bootstrap_correlations),
+    sd_correlation = sd(bootstrap_correlations)
+  ))
+}
+
+# Example usage
+if (requireNamespace("parallel", quietly = TRUE)) {
+  bootstrap_results <- parallel_bootstrap_analysis(results$analytic_data, n_bootstraps = 500)
+  cat(sprintf("Bootstrap 95%% CI: %.3f - %.3f\n",
+              bootstrap_results$ci_lower, bootstrap_results$ci_upper))
+}
+```
+
+## API Integration Examples
+
+### REST API for Results Access
+
+```r
+# Create simple API for accessing results
+create_results_api <- function(results, port = 8000) {
+
+  if (!requireNamespace("plumber", quietly = TRUE)) {
+    stop("Plumber package required for API creation")
+  }
+
+  #* @get /health
+  #* @serializer json
+  function() {
+    list(
+      status = "healthy",
+      timestamp = Sys.time(),
+      sample_size = results$correlations$sample_size
+    )
+  }
+
+  #* @get /correlations
+  #* @serializer json
+  function() {
+    results$correlations
+  }
+
+  #* @get /data-summary
+  #* @serializer json
+  function() {
+    list(
+      variables = names(results$analytic_data),
+      observations = nrow(results$analytic_data),
+      missing_summary = colSums(is.na(results$analytic_data))
+    )
+  }
+
+  # Start API server
+  plumber::pr_run(port = port)
+}
+
+# Example API usage (requires plumber package)
+# api <- create_results_api(results, port = 8000)
+# Access via: http://localhost:8000/correlations
+```
+
+### Database Integration for Results Storage
+
+```r
+# Store results in database for long-term access
+store_results_in_database <- function(results, db_path = "results.db") {
+
+  if (!requireNamespace("DBI", quietly = TRUE) ||
+      !requireNamespace("RSQLite", quietly = TRUE)) {
+    warning("Database packages not available")
+    return(NULL)
+  }
+
+  # Connect to database
+  con <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+
+  # Create results table
+  results_df <- data.frame(
+    analysis_id = digest::digest(results),
+    correlation_overall = results$correlations$overall$correlation,
+    correlation_male = results$correlations$male$correlation,
+    correlation_female = results$correlations$female$correlation,
+    sample_size = results$correlations$sample_size,
+    timestamp = results$timestamp,
+    config_summary = jsonlite::toJSON(results$config)
+  )
+
+  # Store results
+  DBI::dbWriteTable(con, "analysis_results", results_df, append = TRUE)
+
+  # Close connection
+  DBI::dbDisconnect(con)
+
+  return(db_path)
+}
+
+# Example usage
+# db_path <- store_results_in_database(results)
+```
+
+## Custom Error Handling and Logging
+
+### Advanced Error Management
+
+```r
+# Custom error handler for research workflows
+research_error_handler <- function(expr, context = "analysis") {
+
+  tryCatch({
+    result <- eval(expr)
+
+    # Log successful completion
+    safe_log(paste(context, "completed successfully"), "INFO")
+
+    return(result)
+
+  }, error = function(e) {
+
+    # Enhanced error logging
+    error_details <- list(
+      context = context,
+      error_message = e$message,
+      timestamp = Sys.time(),
+      session_info = sessionInfo(),
+      call_stack = sys.calls()
+    )
+
+    # Save error details for debugging
+    saveRDS(error_details, paste0("error_details_", context, "_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".rds"))
+
+    # Log error with full context
+    safe_log(paste("ERROR in", context, ":", e$message), "ERROR")
+    safe_log(paste("Error details saved to error_details_", context, "_*.rds"), "ERROR")
+
+    # Re-throw error to stop execution
+    stop(e)
+  })
+}
+
+# Usage with error handling
+results <- research_error_handler({
+  run_optimized_analysis()
+}, "main_analysis")
+```
+
+## Integration with External Tools
+
+### Integration with Statistical Software
+
+```r
+# Export results for analysis in other software
+export_for_stata <- function(results, file_path = "nhanes_results.dta") {
+
+  if (!requireNamespace("haven", quietly = TRUE)) {
+    stop("haven package required for Stata export")
+  }
+
+  # Prepare data for Stata
+  stata_data <- results$analytic_data %>%
+    select(SEQN, BMXBMI, bodyfat_pct, RIAGENDR, RIDAGEYR,
+           !!sym(config$survey_weights_col)) %>%
+    mutate(
+      # Create Stata-compatible variable names
+      bmi = BMXBMI,
+      bodyfat = bodyfat_pct,
+      sex = RIAGENDR,
+      age = RIDAGEYR,
+      weight = !!sym(config$survey_weights_col)
+    ) %>%
+    select(SEQN, bmi, bodyfat, sex, age, weight)
+
+  # Export to Stata format
+  haven::write_dta(stata_data, file_path)
+
+  return(file_path)
+}
+
+# Export for SPSS
+export_for_spss <- function(results, file_path = "nhanes_results.sav") {
+
+  if (!requireNamespace("haven", quietly = TRUE)) {
+    stop("haven package required for SPSS export")
+  }
+
+  # Similar data preparation for SPSS
+  spss_data <- results$analytic_data %>%
+    select(SEQN, BMXBMI, bodyfat_pct, RIAGENDR, RIDAGEYR)
+
+  haven::write_sav(spss_data, file_path)
+
+  return(file_path)
+}
+```
+
+## Conclusion
+
+These advanced features demonstrate the extensibility of the `nhanesbmi` package:
+
+- **Custom Configurations**: Adapt to specific research needs
+- **Advanced Analytics**: Beyond basic correlation analysis
+- **Performance Optimization**: Handle large datasets efficiently
+- **Integration Capabilities**: Connect with external tools and systems
+- **Professional Outputs**: Publication-ready results and reports
+
+The package serves as both a complete analysis solution and a foundation for custom research workflows.
+
+---
+
+*This advanced features vignette demonstrates customization options using `nhanesbmi` version `r packageVersion("nhanesbmi")`*
