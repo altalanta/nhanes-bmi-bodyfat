@@ -52,7 +52,10 @@ Suggests:
     glmnet,
     quantreg,
     lme4,
-    nlme
+    nlme,
+    plumber,
+    reticulate,
+    jsonld
 URL: https://github.com/altalanta/nhanes-bmi-bodyfat
 BugReports: https://github.com/altalanta/nhanes-bmi-bodyfat/issues
 VignetteBuilder: knitr

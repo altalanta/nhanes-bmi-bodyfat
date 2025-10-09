@@ -57,6 +57,16 @@ deploy: deploy-shiny deploy-docker
 advanced:
 	Rscript -e "library(nhanesbmi); results <- run_optimized_analysis(); advanced <- run_complete_advanced_analysis(results\$analytic_data, results\$config); saveRDS(advanced, 'outputs/tables/advanced_analysis_results.rds')"
 
+# API and integration
+api:
+	Rscript -e "library(nhanesbmi); results <- readRDS('outputs/tables/nhanes_analysis_results.rds'); create_results_api(results)"
+
+api-launch:
+	Rscript -e "library(nhanesbmi); launch_api_server()"
+
+export-all:
+	Rscript -e "library(nhanesbmi); results <- readRDS('outputs/tables/nhanes_analysis_results.rds'); export_comprehensive(results, 'exports')"
+
 # Release management
 release-patch:
 	Rscript -e "usethis::use_version('patch')"
@@ -97,6 +107,9 @@ help:
 	@echo "  prepare-cran - Prepare package for CRAN submission"
 	@echo "  deploy     - Deploy to both Shiny and Docker"
 	@echo "  advanced   - Run complete advanced statistical analysis"
+	@echo "  api        - Start REST API server for results access"
+	@echo "  api-launch - Launch API server from results file"
+	@echo "  export-all - Export results in all supported formats"
 	@echo "  release-patch - Create patch version bump"
 	@echo "  release-minor - Create minor version bump"
 	@echo "  release-major - Create major version bump"
