@@ -1,0 +1,60 @@
+linters: linters_with_defaults(
+  # Code style
+  line_length_linter(100),
+  object_name_linter(styles = "snake_case"),
+  object_usage_linter(),
+
+  # Common issues
+  absolute_path_linter(),
+  assignment_linter(),
+  closed_curly_linter(),
+  comma_linter(),
+  commented_code_linter(),
+  equals_na_linter(),
+  function_left_parentheses_linter(),
+  infix_spaces_linter(),
+  long_vector_linter(),
+  no_tab_linter(),
+  paren_body_linter(),
+  pipe_continuation_linter(),
+  semicolon_linter(),
+  seq_linter(),
+  spaces_inside_linter(),
+  spaces_left_parentheses_linter(),
+  todo_comment_linter(),
+  trailing_blank_lines_linter(),
+  trailing_whitespace_linter(),
+  true_false_linter(),
+
+  # Best practices
+  expect_length_linter(),
+  expect_named_linter(),
+  expect_not_null_linter(),
+  expect_null_linter(),
+  expect_s3_class_linter(),
+  expect_true_false_linter(),
+  expect_type_linter(),
+  missing_argument_linter(),
+  missing_package_linter(),
+  namespace_linter(),
+  nonportable_path_linter(),
+  redundant_equals_linter(),
+  undesirable_function_linter(),
+  undesirable_operator_linter(),
+  unneeded_concatenation_linter(),
+
+  # Performance
+  outer_negation_linter(),
+  vector_logic_linter()
+)
+
+exclusions: list(
+  # Exclude generated files
+  "renv/library/",
+  "data/",
+  "outputs/",
+  # Exclude certain file patterns
+  "\\.Rmd$",
+  "\\.Rnw$"
+)
+

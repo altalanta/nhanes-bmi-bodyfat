@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        r: ["4.3.2", "4.4.0"]
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: r-lib/actions/setup-pandoc@v2
+
+    - uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: ${{ matrix.r }}
+        http-user-agent: ${{ matrix.config.http-user-agent }}
+        use-public-rspm: true
+
+    - name: Install system dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev \
+          libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev \
+          libtiff5-dev libjpeg-dev
+
+    - name: Query dependencies
+      run: |
+        install.packages("renv")
+        writeLines(sprintf("R-%i.%i", getRversion()$major, getRversion()$minor), ".github/R-version")
+      shell: Rscript {0}
+
+    - name: Cache renv packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.local/share/renv
+        key: ${{ runner.os }}-renv-${{ hashFiles('**/renv.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-renv-
+
+    - name: Restore renv snapshot
+      run: |
+        renv::restore()
+      shell: Rscript {0}
+
+    - name: Install additional dependencies
+      run: |
+        # Install packages that might not be in renv.lock
+        install.packages(c("rcmdcheck", "covr"))
+      shell: Rscript {0}
+
+    - name: Create directories and copy config
+      run: |
+        mkdir -p data/raw data/derived outputs/tables outputs/figures outputs/logs outputs/report config
+        cp config/config.yml config/config.yml 2>/dev/null || echo "No config file found"
+
+    - name: Check R scripts syntax
+      run: |
+        # Check syntax of all R scripts
+        for script in scripts/*.R; do
+          if [ -f "$script" ]; then
+            echo "Checking syntax of $script"
+            Rscript -e "tryCatch(parse('$script'), error = function(e) { cat('Syntax error in $script:', e$message, '\n'); quit(status=1) })"
+          fi
+        done
+
+    - name: Fetch NHANES data
+      run: make fetch
+      continue-on-error: false
+
+    - name: Clean and derive dataset
+      run: make cleandata
+      continue-on-error: false
+
+    - name: Run analysis
+      run: make analysis
+      continue-on-error: false
+
+    - name: Generate visualization
+      run: make viz
+      continue-on-error: false
+
+    - name: Run code quality checks
+      run: |
+        # Run linting
+        Rscript -e "lintr::lint_dir('scripts')"
+
+        # Check formatting (dry run)
+        Rscript -e "styler::style_dir('scripts', dry = 'on')"
+      continue-on-error: false
+
+    - name: Run tests
+      run: |
+        Rscript -e "testthat::test_dir('tests')"
+      continue-on-error: false
+
+    - name: Generate report (if Quarto available)
+      run: |
+        if command -v quarto &> /dev/null; then
+          make report
+        else
+          echo "Quarto not available, skipping report generation"
+        fi
+      continue-on-error: true
+
+    - name: Upload analysis artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: nhanes-analysis-${{ matrix.r }}-${{ github.run_number }}
+        path: |
+          outputs/tables/*.csv
+          outputs/figures/*.png
+          outputs/figures/*.pdf
+          outputs/logs/*.txt
+          outputs/report/*.html
+        retention-days: 30
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: test-failures-${{ matrix.r }}-${{ github.run_number }}
+        path: |
+          testthat.Rout*
+          *.Rcheck/
+        retention-days: 7
+
+  deploy-docs:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: '4.4.0'
+        use-public-rspm: true
+
+    - name: Install dependencies
+      run: |
+        install.packages("renv")
+        renv::restore()
+      shell: Rscript {0}
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+
+    - name: Create directories and copy config
+      run: |
+        mkdir -p data/raw data/derived outputs/tables outputs/figures outputs/logs outputs/report docs config
+        cp config/config.yml config/config.yml 2>/dev/null || echo "No config file found"
+
+    - name: Build documentation
+      run: |
+        # Run full pipeline
+        make fetch
+        make cleandata  
+        make analysis
+        make viz
+        
+        # Generate report if possible
+        if command -v quarto &> /dev/null; then
+          make report
+          cp outputs/report/*.html docs/index.html 2>/dev/null || echo "No report generated"
+        else
+          # Create simple index page
+          cat > docs/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>NHANES BMI vs Body Fat Analysis</title></head>
+          <body>
+          <h1>NHANES BMI vs Body Fat Analysis</h1>
+          <p>Analysis results from CI build #${{ github.run_number }}</p>
+          <p>Build date: $(date)</p>
+          </body>
+          </html>
+          EOF
+        fi
+
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: docs/
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2

@@ -1,0 +1,35 @@
+# NHANES data files
+data/raw/*
+*.XPT
+*.xpt
+*.parquet
+*.rds
+*.rdata
+*.feather
+
+# Large outputs
+outputs/**/*.csv
+!outputs/tables/*.csv     # allow small tables
+
+# R files
+.Rhistory
+.Rproj.user
+.RData
+*.Rproj
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs (keep structure but not content)
+outputs/logs/*
+!outputs/logs/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# IDE files
+.vscode/
+.idea/

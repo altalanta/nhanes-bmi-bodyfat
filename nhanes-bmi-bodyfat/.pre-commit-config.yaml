@@ -1,0 +1,27 @@
+repos:
+  - repo: local
+    hooks:
+      - id: r-lint
+        name: R Lint
+        entry: Rscript -e
+        args: ["lintr::lint_dir('scripts')"]
+        language: system
+        files: \.R$
+        pass_filenames: false
+
+      - id: r-format-check
+        name: R Format Check
+        entry: Rscript -e
+        args: ["styler::style_dir('scripts', dry = 'on')"]
+        language: system
+        files: \.R$
+        pass_filenames: false
+
+      - id: r-test
+        name: R Test
+        entry: Rscript -e
+        args: ["testthat::test_dir('tests')"]
+        language: system
+        files: \.(R|qmd)$
+        pass_filenames: false
+
