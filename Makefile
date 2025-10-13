@@ -53,6 +53,16 @@ prepare-cran:
 
 deploy: deploy-shiny deploy-docker
 
+# Shiny dashboard
+shiny:
+	Rscript scripts/shiny_app.R
+
+shiny-dev:
+	Rscript scripts/shiny_app.R --host 127.0.0.1
+
+shiny-local:
+	Rscript scripts/shiny_app.R --host 127.0.0.1 --port 3838
+
 # Docker targets
 docker-build:
 	docker build -t nhanes-bmi-bodyfat:latest .
@@ -134,6 +144,9 @@ help:
 	@echo "  quality    - Run linting and format checks"
 	@echo "  deploy-shiny - Deploy Shiny app to shinyapps.io"
 	@echo "  deploy-docker - Build and test Docker container"
+	@echo "  shiny        - Launch interactive Shiny dashboard"
+	@echo "  shiny-dev    - Launch Shiny dashboard for local development"
+	@echo "  shiny-local  - Launch Shiny dashboard (localhost only)"
 	@echo "  prepare-cran - Prepare package for CRAN submission"
 	@echo "  deploy     - Deploy to both Shiny and Docker"
 	@echo "  advanced   - Run advanced machine learning analysis"

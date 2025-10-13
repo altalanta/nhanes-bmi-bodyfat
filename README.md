@@ -26,6 +26,7 @@ All estimates account for NHANES complex sampling design using MEC examination w
 - **Sample size**: ~2,240 adults with complete data
 - **Significant non-linearity detected** (BMI² term p < 0.01)
 - **Machine learning predictions** with XGBoost achieving best performance (R² > 0.95)
+- **Interactive Shiny dashboard** for data exploration and visualization
 
 ## Quickstart
 
@@ -165,6 +166,41 @@ open http://localhost:8000/__docs__/
 - **Cross-origin support** for web applications
 - **Health monitoring** endpoints
 
+## Interactive Dashboard
+
+The project includes a comprehensive Shiny dashboard for interactive data exploration:
+
+### Dashboard Features
+
+- **📊 Overview Tab** - Key findings and main visualizations
+- **📈 Correlations Tab** - BMI-body fat correlation analysis
+- **📊 Body Fat Analysis** - Statistics by BMI category and sex
+- **👥 Population Tab** - Demographic breakdowns and distributions
+- **🤖 ML Predictions** - Machine learning model performance and predictions
+- **📋 Data Tables** - Raw data exploration
+- **ℹ️ About Tab** - Technical details and methodology
+
+### Dashboard Usage
+
+```bash
+# Launch interactive dashboard
+make shiny
+
+# For local development (localhost only)
+make shiny-dev
+
+# View dashboard
+open http://localhost:3838/
+```
+
+### Dashboard Capabilities
+
+- **🔍 Interactive Filtering** - Filter by sex, BMI category, and age range
+- **📊 Dynamic Visualizations** - Update plots based on filters
+- **🔮 ML Predictions** - Real-time body fat predictions
+- **📈 Comparative Analysis** - Model performance comparisons
+- **💾 Data Export** - Download filtered datasets
+
 ## Data Sources
 
 **NHANES 2017-2018** data files are automatically downloaded from CDC:
@@ -199,10 +235,12 @@ nhanes-bmi-bodyfat/
 │   └── prepare-cran.R         # CRAN preparation
 ├── scripts/
 │   ├── api_server.R           # API server launcher
-│   └── advanced_ml_analysis.R # Machine learning analysis
+│   ├── advanced_ml_analysis.R # Machine learning analysis
+│   └── shiny_app.R            # Shiny dashboard launcher
 ├── R/
 │   ├── api.R                  # REST API definition
-│   └── advanced_analytics.R   # Machine learning module
+│   ├── advanced_analytics.R   # Machine learning module
+│   └── shiny_dashboard.R      # Interactive dashboard
 ├── data/
 │   ├── raw/                   # Raw NHANES files (auto-downloaded)
 │   └── derived/               # Processed datasets
@@ -244,6 +282,8 @@ make viz                    # Visualization only
 make test                   # Run test suite
 make report                 # Generate report only
 make advanced               # Run machine learning analysis
+make shiny                  # Launch interactive dashboard
+make shiny-dev              # Launch dashboard for local development
 
 # Clean outputs
 make clean                  # Remove derived files
@@ -305,6 +345,7 @@ curl "http://localhost:8000/api/bodyfat/bmi/Normal"
 
 # In Docker
 docker run -p 8000:8000 nhanes-bmi-bodyfat api
+docker run -p 3838:3838 nhanes-bmi-bodyfat shiny
 ```
 
 ### Development
