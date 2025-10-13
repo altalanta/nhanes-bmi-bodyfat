@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  nhanes-analysis:
+    build: .
+    image: nhanes-bmi-bodyfat:latest
+    container_name: nhanes-analysis
+    user: nhanes
+    working_dir: /home/nhanes/app
+    volumes:
+      # Mount output directories for persistent results
+      - ./outputs:/home/nhanes/app/outputs
+      - ./data:/home/nhanes/app/data
+      - ./cache:/home/nhanes/app/cache
+    environment:
+      - TARGET=all
+    networks:
+      - nhanes-network
+
+  # Optional: Development service with volume mounts for active development
+  nhanes-dev:
+    build: .
+    image: nhanes-bmi-bodyfat:latest
+    container_name: nhanes-dev
+    user: nhanes
+    working_dir: /home/nhanes/app
+    volumes:
+      # Mount entire project for development
+      - .:/home/nhanes/app
+    environment:
+      - R_PROFILE_USER=/home/nhanes/app/.Rprofile
+    stdin_open: true
+    tty: true
+    networks:
+      - nhanes-network
+
+networks:
+  nhanes-network:
+    driver: bridge
+
+# Volumes for data persistence
+volumes:
+  nhanes-data:
+    driver: local
+  nhanes-outputs:
+    driver: local
