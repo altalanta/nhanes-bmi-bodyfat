@@ -84,3 +84,4 @@ if (!interactive()) {
   # Assume API is running on port 8000 for testing
   test_api(8000)
 }
+

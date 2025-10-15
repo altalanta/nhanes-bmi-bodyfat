@@ -240,7 +240,7 @@ create_results_api <- function(results = NULL, port = 8000, host = "127.0.0.1") 
           error = e$message,
           analysis_timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         )
-      }
+      })
     }, serializer = plumber::serializer_json())
 
     # Export data in different formats
