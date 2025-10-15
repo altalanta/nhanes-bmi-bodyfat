@@ -1,0 +1,33 @@
+# NHANES BMI Body Fat Analysis Configuration
+
+# Data directories
+data:
+  raw_dir: "data/raw"
+  derived_dir: "data/derived"
+
+# Output directories
+outputs:
+  tables_dir: "outputs/tables"
+  figures_dir: "outputs/figures"
+  logs_dir: "outputs/logs"
+  report_dir: "outputs/report"
+
+# NHANES data files (2017-2018)
+nhanes:
+  demo_file: "DEMO_J.XPT"
+  bmx_file: "BMX_J.XPT"
+  dxx_file: "DXX_J.XPT"
+  dxxag_file: "DXXAG_J.XPT"
+
+# Analysis parameters
+analysis:
+  age_range: [20, 59]
+  survey_weights_col: "WTMEC2YR"
+  strata_col: "SDMVSTRA"
+  psu_col: "SDMVPSU"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  file: "analysis_log.txt"
+
