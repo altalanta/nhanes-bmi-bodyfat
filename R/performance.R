@@ -358,6 +358,354 @@ get_cache_stats <- function(cache_dir = "cache") {
   )
 }
 
+#' Performance benchmarking class
+#'
+#' @param name Benchmark name
+#' @param start_time Start time
+#' @param end_time End time
+#' @param memory_used Memory usage in MB
+#' @param cpu_time CPU time in seconds
+#' @param metadata Additional metadata
+#' @export
+PerformanceBenchmark <- function(name, start_time, end_time, memory_used, cpu_time, metadata = NULL) {
+  benchmark <- list(
+    name = name,
+    start_time = start_time,
+    end_time = end_time,
+    duration = as.numeric(difftime(end_time, start_time, units = "secs")),
+    memory_used = memory_used,
+    cpu_time = cpu_time,
+    metadata = metadata,
+    timestamp = Sys.time()
+  )
+  class(benchmark) <- "PerformanceBenchmark"
+  return(benchmark)
+}
+
+#' Global performance tracking environment
+performance_tracker <- new.env()
+
+#' Initialize performance tracking
+#'
+#' @param session_name Name of the analysis session
+#' @param output_dir Directory for performance logs
+#' @export
+initialize_performance_tracking <- function(session_name = "nhanes_analysis",
+                                          output_dir = "outputs/logs") {
+
+  performance_tracker$session_name <- session_name
+  performance_tracker$benchmarks <- list()
+  performance_tracker$output_dir <- output_dir
+  performance_tracker$start_time <- Sys.time()
+
+  # Create performance log directory
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  # Initialize performance log file
+  performance_tracker$log_file <- file.path(output_dir, "performance_log.txt")
+
+  # Log session start
+  log_performance("=== Performance tracking session started ===")
+  log_performance(paste("Session:", session_name))
+  log_performance(paste("Start time:", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
+
+  # Record initial memory state
+  initial_memory <- get_memory_usage()
+  log_performance(paste("Initial memory usage:", round(initial_memory, 2), "MB"))
+
+  return(invisible(TRUE))
+}
+
+#' Get current memory usage
+#'
+#' @return Memory usage in MB
+#' @export
+get_memory_usage <- function() {
+  tryCatch({
+    # Try different methods to get memory usage
+    if (.Platform$OS.type == "windows") {
+      # Windows method
+      mem_info <- system("wmic OS get FreePhysicalMemory /Value", intern = TRUE)
+      total_mem_mb <- as.numeric(gsub("FreePhysicalMemory=", "", mem_info[grepl("FreePhysicalMemory", mem_info)])) / 1024
+      return(total_mem_mb)
+    } else {
+      # Unix-like systems (Linux, macOS)
+      mem_info <- system("free -m", intern = TRUE)
+      if (length(mem_info) >= 2) {
+        mem_values <- as.numeric(strsplit(gsub("\\s+", " ", mem_info[2]), " ")[[1]])
+        total_mem_mb <- mem_values[2]
+        used_mem_mb <- total_mem_mb - mem_values[4]
+        return(used_mem_mb)
+      }
+    }
+
+    # Fallback: R memory usage
+    gc()
+    mem_usage <- sum(gc()[, 2])
+    return(mem_usage / 1024 / 1024)  # Convert to MB
+
+  }, error = function(e) {
+    # Fallback if system commands fail
+    gc()
+    mem_usage <- sum(gc()[, 2])
+    return(mem_usage / 1024 / 1024)
+  })
+}
+
+#' Get CPU time
+#'
+#' @return CPU time in seconds
+#' @export
+get_cpu_time <- function() {
+  tryCatch({
+    proc_time <- proc.time()
+    return(proc_time[1] + proc_time[2])  # user + system time
+  }, error = function(e) {
+    return(0)
+  })
+}
+
+#' Performance benchmarking wrapper
+#'
+#' @param expr Expression to benchmark
+#' @param benchmark_name Name of the benchmark
+#' @param metadata Additional metadata to record
+#' @return Result of the expression
+#' @export
+benchmark_operation <- function(expr, benchmark_name, metadata = NULL) {
+  start_time <- Sys.time()
+  start_cpu <- get_cpu_time()
+  start_memory <- get_memory_usage()
+
+  tryCatch({
+    result <- eval(expr)
+
+    end_time <- Sys.time()
+    end_cpu <- get_cpu_time()
+    end_memory <- get_memory_usage()
+
+    # Calculate metrics
+    duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+    cpu_time <- end_cpu - start_cpu
+    memory_used <- end_memory - start_memory
+
+    # Create benchmark object
+    benchmark <- PerformanceBenchmark(
+      name = benchmark_name,
+      start_time = start_time,
+      end_time = end_time,
+      memory_used = memory_used,
+      cpu_time = cpu_time,
+      metadata = metadata
+    )
+
+    # Store benchmark
+    performance_tracker$benchmarks <- c(
+      performance_tracker$benchmarks,
+      list(benchmark)
+    )
+
+    # Log benchmark
+    log_performance(sprintf(
+      "[BENCHMARK] %s: %.2fs, %.2fMB, %.2fs CPU",
+      benchmark_name, duration, memory_used, cpu_time
+    ))
+
+    return(result)
+
+  }, error = function(e) {
+    end_time <- Sys.time()
+    end_cpu <- get_cpu_time()
+    end_memory <- get_memory_usage()
+
+    duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+    cpu_time <- end_cpu - start_cpu
+    memory_used <- end_memory - start_memory
+
+    # Log failed benchmark
+    log_performance(sprintf(
+      "[BENCHMARK_FAILED] %s: %.2fs, %.2fMB, %.2fs CPU - ERROR: %s",
+      benchmark_name, duration, memory_used, cpu_time, e$message
+    ))
+
+    stop(e)
+  })
+}
+
+#' Log performance message
+#'
+#' @param message Message to log
+#' @param level Log level (INFO, WARNING, ERROR)
+#' @export
+log_performance <- function(message, level = "INFO") {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+
+  if (exists("log_file", envir = performance_tracker)) {
+    cat(sprintf("[%s] %s: %s\n", level, timestamp, message),
+        file = performance_tracker$log_file, append = TRUE)
+  }
+
+  # Also print to console if not in quiet mode
+  if (getOption("verbose", TRUE)) {
+    cat(sprintf("[%s] %s\n", level, message))
+  }
+}
+
+#' Generate performance report
+#'
+#' @param output_file Output file for the report
+#' @return Performance summary statistics
+#' @export
+generate_performance_report <- function(output_file = NULL) {
+  if (is.null(output_file)) {
+    output_file <- file.path(performance_tracker$output_dir, "performance_report.html")
+  }
+
+  benchmarks <- performance_tracker$benchmarks
+  n_benchmarks <- length(benchmarks)
+
+  if (n_benchmarks == 0) {
+    log_performance("No benchmarks recorded")
+    return(NULL)
+  }
+
+  # Calculate summary statistics
+  durations <- sapply(benchmarks, function(b) b$duration)
+  memory_usage <- sapply(benchmarks, function(b) b$memory_used)
+  cpu_times <- sapply(benchmarks, function(b) b$cpu_time)
+
+  summary_stats <- list(
+    total_benchmarks = n_benchmarks,
+    total_duration = sum(durations),
+    mean_duration = mean(durations),
+    median_duration = median(durations),
+    min_duration = min(durations),
+    max_duration = max(durations),
+    total_memory = sum(memory_usage),
+    mean_memory = mean(memory_usage),
+    max_memory = max(memory_usage),
+    total_cpu = sum(cpu_times),
+    mean_cpu = mean(cpu_times)
+  )
+
+  # Create HTML report
+  report_content <- paste0("
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NHANES Analysis Performance Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .section { margin-bottom: 30px; }
+        .metric { background-color: #f5f5f5; padding: 10px; margin: 5px 0; }
+        .benchmark { background-color: #e8f4fd; padding: 10px; margin: 5px 0; border-left: 4px solid #2196F3; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .slow { background-color: #ffebee; }
+        .memory-intensive { background-color: #fff3e0; }
+    </style>
+</head>
+<body>
+    <h1>NHANES Analysis Performance Report</h1>
+    <p><strong>Session:</strong> ", performance_tracker$session_name, "</p>
+    <p><strong>Generated:</strong> ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "</p>
+
+    <div class='section'>
+        <h2>Summary Statistics</h2>
+        <div class='metric'>
+            <p><strong>Total Operations:</strong> ", summary_stats$total_benchmarks, "</p>
+            <p><strong>Total Duration:</strong> ", round(summary_stats$total_duration, 2), " seconds</p>
+            <p><strong>Mean Duration:</strong> ", round(summary_stats$mean_duration, 2), " seconds</p>
+            <p><strong>Median Duration:</strong> ", round(summary_stats$median_duration, 2), " seconds</p>
+            <p><strong>Total Memory Used:</strong> ", round(summary_stats$total_memory, 2), " MB</p>
+            <p><strong>Peak Memory Usage:</strong> ", round(summary_stats$max_memory, 2), " MB</p>
+        </div>
+    </div>
+
+    <div class='section'>
+        <h2>Benchmark Details</h2>
+")
+
+  # Add benchmark details
+  for (i in 1:n_benchmarks) {
+    benchmark <- benchmarks[[i]]
+
+    # Determine performance classes
+    duration_class <- if (benchmark$duration > 60) "slow" else ""
+    memory_class <- if (benchmark$memory_used > 100) "memory-intensive" else ""
+
+    report_content <- paste0(report_content, "
+        <div class='benchmark ", duration_class, " ", memory_class, "'>
+            <h4>", benchmark$name, "</h4>
+            <p><strong>Duration:</strong> ", round(benchmark$duration, 2), " seconds</p>
+            <p><strong>Memory Used:</strong> ", round(benchmark$memory_used, 2), " MB</p>
+            <p><strong>CPU Time:</strong> ", round(benchmark$cpu_time, 2), " seconds</p>
+            <p><strong>Start Time:</strong> ", format(benchmark$start_time, "%H:%M:%S"), "</p>
+")
+
+    if (!is.null(benchmark$metadata)) {
+      report_content <- paste0(report_content, "
+            <p><strong>Metadata:</strong> ", paste(benchmark$metadata, collapse = ", "), "</p>
+")
+    }
+
+    report_content <- paste0(report_content, "
+        </div>
+")
+  }
+
+  # Add performance recommendations
+  report_content <- paste0(report_content, "
+    <div class='section'>
+        <h2>Performance Recommendations</h2>
+")
+
+  if (summary_stats$mean_duration > 30) {
+    report_content <- paste0(report_content, "
+        <div class='metric' style='background-color: #fff3cd; border-left: 4px solid #ffc107;'>
+            <p><strong>⚠️ High Average Duration:</strong> Consider optimizing slow operations or parallelizing computations.</p>
+        </div>
+")
+  }
+
+  if (summary_stats$max_memory > 500) {
+    report_content <- paste0(report_content, "
+        <div class='metric' style='background-color: #f8d7da; border-left: 4px solid #dc3545;'>
+            <p><strong>⚠️ High Memory Usage:</strong> Monitor memory-intensive operations and consider data chunking for large datasets.</p>
+        </div>
+")
+  }
+
+  if (summary_stats$total_benchmarks > 50) {
+    report_content <- paste0(report_content, "
+        <div class='metric' style='background-color: #d4edda; border-left: 4px solid #28a745;'>
+            <p><strong>✅ Good Modularization:</strong> Analysis is well-broken into manageable operations.</p>
+        </div>
+")
+  }
+
+  report_content <- paste0(report_content, "
+    </div>
+")
+
+  # Close HTML
+  report_content <- paste0(report_content, "
+</body>
+</html>
+")
+
+  # Write report
+  writeLines(report_content, output_file)
+
+  log_performance(paste("Performance report generated:", output_file))
+  log_performance(sprintf("Total benchmarks: %d, Total time: %.2fs", n_benchmarks, summary_stats$total_duration))
+
+  return(summary_stats)
+}
+
 #' Performance-optimized version of complete analysis
 #'
 #' Runs the complete analysis pipeline with caching and performance optimizations.
@@ -366,12 +714,19 @@ get_cache_stats <- function(cache_dir = "cache") {
 #' @param use_cache Use caching for expensive operations (default: TRUE)
 #' @param force_refresh Force refresh of cached results (default: FALSE)
 #' @param n_cores Number of cores for parallel processing (default: 2)
+#' @param track_performance Enable detailed performance tracking (default: TRUE)
 #' @return Complete analysis results
 #' @export
 run_optimized_analysis <- function(config_file = "config/config.yml",
                                  use_cache = TRUE,
                                  force_refresh = FALSE,
-                                 n_cores = 2) {
+                                 n_cores = 2,
+                                 track_performance = TRUE) {
+
+  # Initialize performance tracking if requested
+  if (track_performance) {
+    initialize_performance_tracking()
+  }
 
   safe_log("Starting optimized NHANES analysis", "INFO")
 
@@ -381,52 +736,78 @@ run_optimized_analysis <- function(config_file = "config/config.yml",
 
   # Use caching for data loading if enabled
   if (use_cache) {
-    datasets <- cached_load_datasets(config, force_refresh = force_refresh)
+    datasets <- benchmark_operation(
+      cached_load_datasets(config, force_refresh = force_refresh),
+      "data_loading",
+      metadata = list(cached = TRUE, force_refresh = force_refresh)
+    )
   } else {
-    datasets <- load_nhanes_datasets(config)
+    datasets <- benchmark_operation(
+      load_nhanes_datasets(config),
+      "data_loading",
+      metadata = list(cached = FALSE)
+    )
   }
 
   # Create analytic dataset
-  analytic_data <- with_performance_monitor(
-    create_analytic_dataset,
-    "analytic dataset creation"
-  )(datasets, config)
+  analytic_data <- benchmark_operation(
+    create_analytic_dataset(datasets, config),
+    "analytic_dataset_creation",
+    metadata = list(n_datasets = length(datasets), sample_size = nrow(datasets$demo))
+  )
 
   # Create survey design
-  svy_design <- with_performance_monitor(
-    create_survey_design,
-    "survey design creation"
-  )(analytic_data, config)
+  svy_design <- benchmark_operation(
+    create_survey_design(analytic_data, config),
+    "survey_design_creation",
+    metadata = list(n_observations = nrow(analytic_data))
+  )
 
   # Use caching for correlation computation if enabled
   if (use_cache) {
-    correlations <- cached_compute_correlations(svy_design)
+    correlations <- benchmark_operation(
+      cached_compute_correlations(svy_design),
+      "correlation_computation",
+      metadata = list(cached = TRUE)
+    )
   } else {
-    correlations <- with_performance_monitor(
-      compute_correlations,
-      "correlation computation"
-    )(svy_design)
+    correlations <- benchmark_operation(
+      compute_correlations(svy_design),
+      "correlation_computation",
+      metadata = list(cached = FALSE)
+    )
   }
 
   # Run data validation with parallel processing
-  validation_results <- parallel_validate_datasets(datasets, config, n_cores)
+  validation_results <- benchmark_operation(
+    parallel_validate_datasets(datasets, config, n_cores),
+    "data_validation",
+    metadata = list(parallel_cores = n_cores, n_datasets = length(datasets))
+  )
 
   # Save results with performance monitoring
-  results_file <- file.path(config$outputs_tables_path, "nhanes_analysis_results.rds")
+  results_file <- file.path(config$outputs$tables_dir, "nhanes_analysis_results.rds")
   analysis_results <- list(
     correlations = correlations,
     validation_results = validation_results,
     config = config,
     timestamp = Sys.time(),
-    sample_size = correlations$sample_size,
+    sample_size = nrow(analytic_data),
     performance_info = list(
       used_cache = use_cache,
       parallel_cores = n_cores,
-      cache_stats = get_cache_stats()
+      cache_stats = get_cache_stats(),
+      performance_tracking = track_performance
     )
   )
 
   safe_save_data(analysis_results, results_file)
+
+  # Generate performance report if tracking was enabled
+  if (track_performance) {
+    perf_report <- generate_performance_report()
+    analysis_results$performance_report <- perf_report
+  }
 
   safe_log("Optimized analysis completed successfully", "INFO")
   return(analysis_results)
