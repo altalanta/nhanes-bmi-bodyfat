@@ -336,6 +336,365 @@ generate_quality_report <- function(quality_reports, consistency_report, output_
   return(output_file)
 }
 
+#' Custom error class for NHANES-specific errors
+#'
+#' @param message Error message
+#' @param code Error code for categorization
+#' @param details Additional error details
+#' @export
+NhanesError <- function(message, code = "GENERAL_ERROR", details = NULL) {
+  error <- list(
+    message = message,
+    code = code,
+    details = details,
+    timestamp = Sys.time()
+  )
+  class(error) <- "NhanesError"
+  return(error)
+}
+
+#' Custom warning class for NHANES-specific warnings
+#'
+#' @param message Warning message
+#' @param code Warning code for categorization
+#' @param details Additional warning details
+#' @export
+NhanesWarning <- function(message, code = "GENERAL_WARNING", details = NULL) {
+  warning <- list(
+    message = message,
+    code = code,
+    details = details,
+    timestamp = Sys.time()
+  )
+  class(warning) <- "NhanesWarning"
+  return(warning)
+}
+
+#' Safe file reading with comprehensive error handling
+#'
+#' @param file_path Path to file to read
+#' @param dataset_name Name of dataset for error messages
+#' @param expected_vars Expected variables in the dataset
+#' @return Data frame or throws NhanesError
+#' @export
+safe_read_xpt <- function(file_path, dataset_name, expected_vars = NULL) {
+  tryCatch({
+    if (!file.exists(file_path)) {
+      stop(NhanesError(
+        paste("File not found:", file_path),
+        code = "FILE_NOT_FOUND",
+        details = list(file_path = file_path, dataset_name = dataset_name)
+      ))
+    }
+
+    # Check file size (should be reasonable for XPT files)
+    file_size <- file.info(file_path)$size
+    if (file_size > 500 * 1024 * 1024) {  # 500MB limit
+      warning(NhanesWarning(
+        paste("Large file size detected:", round(file_size / 1024 / 1024, 2), "MB"),
+        code = "LARGE_FILE",
+        details = list(file_path = file_path, size_mb = file_size / 1024 / 1024)
+      ))
+    }
+
+    # Read the file
+    data <- foreign::read.xport(file_path)
+
+    if (is.null(data) || nrow(data) == 0) {
+      stop(NhanesError(
+        paste("Empty or invalid dataset:", dataset_name),
+        code = "EMPTY_DATASET",
+        details = list(file_path = file_path, dataset_name = dataset_name)
+      ))
+    }
+
+    # Validate expected variables if provided
+    if (!is.null(expected_vars)) {
+      missing_vars <- setdiff(expected_vars, names(data))
+      if (length(missing_vars) > 0) {
+        warning(NhanesWarning(
+          paste("Missing expected variables in", dataset_name, ":",
+                paste(missing_vars, collapse = ", ")),
+          code = "MISSING_VARIABLES",
+          details = list(dataset_name = dataset_name, missing_vars = missing_vars)
+        ))
+      }
+    }
+
+    # Add dataset metadata
+    attr(data, "source_file") <- file_path
+    attr(data, "dataset_name") <- dataset_name
+    attr(data, "read_timestamp") <- Sys.time()
+    attr(data, "n_rows") <- nrow(data)
+    attr(data, "n_cols") <- ncol(data)
+
+    return(data)
+
+  }, error = function(e) {
+    if (inherits(e, "NhanesError")) {
+      stop(e)
+    } else {
+      stop(NhanesError(
+        paste("Failed to read", dataset_name, ":", e$message),
+        code = "READ_ERROR",
+        details = list(file_path = file_path, original_error = e$message)
+      ))
+    }
+  })
+}
+
+#' Validate survey design parameters
+#'
+#' @param data Dataset with survey variables
+#' @param weights_col Weight variable column name
+#' @param strata_col Strata variable column name
+#' @param psu_col PSU variable column name
+#' @return Validation results or throws NhanesError
+#' @export
+validate_survey_design <- function(data, weights_col, strata_col, psu_col) {
+
+  validation_results <- list(
+    passed = TRUE,
+    warnings = list(),
+    errors = list()
+  )
+
+  # Check if survey variables exist
+  survey_vars <- c(weights_col, strata_col, psu_col)
+  for (var in survey_vars) {
+    if (!(var %in% names(data))) {
+      error_msg <- paste("Survey variable not found:", var)
+      validation_results$errors <- c(validation_results$errors, error_msg)
+      validation_results$passed <- FALSE
+    }
+  }
+
+  if (!validation_results$passed) {
+    error_messages <- paste(validation_results$errors, collapse = "; ")
+    stop(NhanesError(
+      paste("Survey design validation failed:", error_messages),
+      code = "INVALID_SURVEY_VARS",
+      details = list(missing_vars = survey_vars[!survey_vars %in% names(data)])
+    ))
+  }
+
+  # Check for missing values in survey variables
+  for (var in survey_vars) {
+    missing_count <- sum(is.na(data[[var]]))
+    if (missing_count > 0) {
+      error_msg <- paste("Missing values in survey variable", var, ":", missing_count)
+      validation_results$errors <- c(validation_results$errors, error_msg)
+      validation_results$passed <- FALSE
+    }
+  }
+
+  if (!validation_results$passed) {
+    error_messages <- paste(validation_results$errors, collapse = "; ")
+    stop(NhanesError(
+      paste("Survey variables have missing values:", error_messages),
+      code = "MISSING_SURVEY_VALUES",
+      details = list(missing_counts = survey_vars)
+    ))
+  }
+
+  # Check weight distribution
+  weights <- data[[weights_col]]
+  if (any(weights <= 0, na.rm = TRUE)) {
+    error_msg <- paste("Invalid weights (≤0) in", weights_col)
+    validation_results$errors <- c(validation_results$errors, error_msg)
+    validation_results$passed <- FALSE
+  }
+
+  if (max(weights, na.rm = TRUE) / min(weights, na.rm = TRUE) > 10000) {
+    warning_msg <- paste("Very large weight ratio in", weights_col,
+                        "(max/min =", round(max(weights, na.rm = TRUE) / min(weights, na.rm = TRUE), 2), ")")
+    validation_results$warnings <- c(validation_results$warnings, warning_msg)
+  }
+
+  # Check strata distribution
+  strata <- data[[strata_col]]
+  n_strata <- length(unique(strata))
+  if (n_strata < 5) {
+    warning_msg <- paste("Few strata in", strata_col, "(", n_strata, "strata)")
+    validation_results$warnings <- c(validation_results$warnings, warning_msg)
+  }
+
+  # Check PSU distribution
+  psu <- data[[psu_col]]
+  n_psu <- length(unique(psu))
+  if (n_psu < 10) {
+    warning_msg <- paste("Few PSUs in", psu_col, "(", n_psu, "PSUs)")
+    validation_results$warnings <- c(validation_results$warnings, warning_msg)
+  }
+
+  # Check for singleton PSUs
+  psu_counts <- table(psu)
+  singleton_psus <- sum(psu_counts == 1)
+  if (singleton_psus > 0) {
+    warning_msg <- paste("Singleton PSUs found in", psu_col, "(", singleton_psus, "singletons)")
+    validation_results$warnings <- c(validation_results$warnings, warning_msg)
+  }
+
+  # Report warnings if any
+  if (length(validation_results$warnings) > 0) {
+    warning_messages <- paste(validation_results$warnings, collapse = "; ")
+    warning(NhanesWarning(
+      paste("Survey design validation warnings:", warning_messages),
+      code = "SURVEY_DESIGN_WARNINGS",
+      details = list(validation_results = validation_results)
+    ))
+  }
+
+  return(validation_results)
+}
+
+#' Safe execution wrapper with comprehensive error handling and logging
+#'
+#' @param expr Expression to execute
+#' @param operation_name Name of operation for logging
+#' @param config Configuration object
+#' @param log_file Optional log file path
+#' @return Result of expression or throws NhanesError
+#' @export
+safe_execute <- function(expr, operation_name, config, log_file = NULL) {
+  start_time <- Sys.time()
+
+  tryCatch({
+    # Execute the expression
+    result <- eval(expr)
+
+    # Log success
+    end_time <- Sys.time()
+    duration <- end_time - start_time
+
+    success_msg <- paste0("[SUCCESS] ", operation_name, " completed in ",
+                         round(duration, 2), " seconds")
+
+    if (!is.null(log_file)) {
+      cat(success_msg, "\n", file = log_file, append = TRUE)
+    }
+    message(success_msg)
+
+    return(result)
+
+  }, error = function(e) {
+    end_time <- Sys.time()
+    duration <- end_time - start_time
+
+    error_msg <- paste0("[ERROR] ", operation_name, " failed after ",
+                       round(duration, 2), " seconds: ", e$message)
+
+    if (!is.null(log_file)) {
+      cat(error_msg, "\n", file = log_file, append = TRUE)
+    }
+
+    if (inherits(e, "NhanesError")) {
+      stop(e)
+    } else {
+      stop(NhanesError(
+        paste("Operation failed:", e$message),
+        code = "OPERATION_FAILED",
+        details = list(operation = operation_name, original_error = e$message)
+      ))
+    }
+  })
+}
+
+#' Load configuration with validation
+#'
+#' @param config_file Path to configuration file
+#' @return Configuration object or throws NhanesError
+#' @export
+safe_load_config <- function(config_file = "config/config.yml") {
+  tryCatch({
+    if (!file.exists(config_file)) {
+      stop(NhanesError(
+        paste("Configuration file not found:", config_file),
+        code = "CONFIG_FILE_NOT_FOUND",
+        details = list(config_file = config_file)
+      ))
+    }
+
+    config <- yaml::read_yaml(config_file)
+
+    # Validate required configuration sections
+    required_sections <- c("data", "outputs", "nhanes", "analysis", "logging")
+    missing_sections <- setdiff(required_sections, names(config))
+
+    if (length(missing_sections) > 0) {
+      stop(NhanesError(
+        paste("Missing required configuration sections:",
+              paste(missing_sections, collapse = ", ")),
+        code = "INVALID_CONFIG",
+        details = list(missing_sections = missing_sections)
+      ))
+    }
+
+    # Validate file paths
+    nhanes_files <- c(
+      config$nhanes$demo_file,
+      config$nhanes$bmx_file,
+      config$nhanes$dxx_file,
+      config$nhanes$dxxag_file
+    )
+
+    for (file in nhanes_files) {
+      if (!file.exists(file.path(config$data$raw_dir, file))) {
+        warning(NhanesWarning(
+          paste("NHANES file may not exist:", file),
+          code = "MISSING_NHANES_FILE",
+          details = list(file = file, path = file.path(config$data$raw_dir, file))
+        ))
+      }
+    }
+
+    return(config)
+
+  }, error = function(e) {
+    if (inherits(e, "NhanesError")) {
+      stop(e)
+    } else {
+      stop(NhanesError(
+        paste("Failed to load configuration:", e$message),
+        code = "CONFIG_LOAD_ERROR",
+        details = list(original_error = e$message)
+      ))
+    }
+  })
+}
+
+#' Ensure output directories exist
+#'
+#' @param config Configuration object
+#' @return NULL or throws NhanesError
+#' @export
+ensure_output_dirs <- function(config) {
+  tryCatch({
+    output_dirs <- c(
+      config$data$raw_dir,
+      config$data$derived_dir,
+      config$outputs$tables_dir,
+      config$outputs$figures_dir,
+      config$outputs$logs_dir,
+      config$outputs$report_dir
+    )
+
+    for (dir in output_dirs) {
+      if (!dir.exists(dir)) {
+        dir.create(dir, recursive = TRUE)
+        message(paste("Created directory:", dir))
+      }
+    }
+
+  }, error = function(e) {
+    stop(NhanesError(
+      paste("Failed to create output directories:", e$message),
+      code = "DIRECTORY_CREATION_FAILED",
+      details = list(original_error = e$message)
+    ))
+  })
+}
+
 #' Run complete data validation pipeline
 #'
 #' Orchestrates comprehensive data validation for all NHANES datasets.
@@ -362,7 +721,7 @@ run_data_validation <- function(datasets, config = NULL) {
 
   # Generate comprehensive report
   if (!is.null(config)) {
-    report_file <- file.path(config$outputs_logs_path, "data_quality_report.html")
+    report_file <- file.path(config$outputs$logs_dir, "data_quality_report.html")
     generate_quality_report(quality_reports, consistency_report, report_file)
   }
 
