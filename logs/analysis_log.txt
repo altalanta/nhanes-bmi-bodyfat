@@ -1,0 +1,45 @@
+NHANES 2017-2018 BMI vs % Body Fat Analysis
+===========================================
+Start time: 2025-10-04 08:05:28 
+
+Step 1: Loading NHANES 2017-2018 data files 
+Loaded datasets: 
+- DEMO_J: 9254 records 
+- BMX_J: 8704 records 
+- DXX_J: 5114 records 
+- DXXAG_J: 5114 records 
+
+Step 2: Identifying % body fat variable in DXX_J 
+Resolved % body fat variable: DXDTOFAT 
+Variable label:  
+
+Step 3: Merging datasets by SEQN 
+Merged dataset has 9254 records 
+
+Step 4: Applying inclusion criteria 
+After age restriction (20-59): 3419 records 
+After excluding missing BMI/body fat/survey vars: 2240 records 
+Excluded due to missing data: 1179 records 
+
+Step 5: Creating survey design object 
+Survey design created with Taylor linearization 
+
+Step 6: Computing survey-weighted correlations 
+Overall BMI-body fat correlation: 0.9139 95% CI: ( 0.8852 , 0.9426 ) 
+Male BMI-body fat correlation: 0.9169 95% CI: ( 0.8852 , 0.9486 ) 
+Female BMI-body fat correlation: 0.9538 95% CI: ( 0.9408 , 0.9668 ) 
+
+Step 7: Computing body fat by BMI class and sex 
+
+Step 8: Creating BMI vs body fat visualization 
+
+Step 9: Checking linearity assumption 
+Linear model AIC: 3.86 Linear model AIC: 44228.87 Linear model AIC: 1.93 
+Quadratic model AIC: 5.32 Quadratic model AIC: 44213.92 Quadratic model AIC: 1.77 
+BMI² term p-value: 0.0074 
+Significant nonlinearity detected (p < 0.05) 
+
+Step 11: Writing methods documentation 
+
+Analysis completed successfully! 
+All output files written to ~/Downloads/nhanes_2017_2018_outputs/ 

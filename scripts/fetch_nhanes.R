@@ -15,6 +15,9 @@ suppressPackageStartupMessages({
 # Source validation utilities
 source(file.path(here::here(), "R", "data_validation.R"))
 
+# Source data versioning utilities
+source(file.path(here::here(), "R", "data_versioning.R"))
+
 # Set up paths
 repo_root <- here::here()
 data_raw_dir <- file.path(repo_root, "data", "raw")
@@ -470,5 +473,41 @@ if (length(verification_issues) > 0) {
   stop("Final verification failed. Issues found: ", paste(verification_issues, collapse = "; "))
 }
 
-cat("\n✅ All NHANES files successfully fetched, validated, and verified!\n")
+# Register files in data registry for version management
+cat("\n🔄 Registering files in data registry...\n")
+registry_updated <- 0
+
+for (dataset_name in names(manifest)) {
+  file_info <- manifest[[dataset_name]]
+
+  if (!"error" %in% names(file_info)) {
+    filepath <- file_info$filepath
+
+    # Determine data type for registry
+    data_type <- switch(dataset_name,
+      "DEMO_J" = "demographics",
+      "BMX_J" = "body_measures",
+      "DXX_J" = "dxa_whole_body",
+      "DXXAG_J" = "dxa_android_gynoid",
+      "unknown"
+    )
+
+    nhanes_cycle <- "2017-2018"
+
+    # Register file in data registry
+    success <- add_to_registry(filepath, data_type, nhanes_cycle)
+    if (success) {
+      registry_updated <- registry_updated + 1
+    }
+  }
+}
+
+cat("✅ Data registry updated with", registry_updated, "files\n")
+
+# Generate data manifest for reproducibility
+cat("📋 Generating data manifest...\n")
+generate_data_manifest()
+
+cat("\n✅ All NHANES files successfully fetched, validated, and registered!\n")
+cat("📊 Data registry and manifest created for reproducible research.\n")
 cat("Ready for analysis pipeline.\n")
