@@ -23,7 +23,13 @@ Imports:
     testthat,
     knitr,
     rmarkdown,
-    here
+    here,
+    future,
+    furrr,
+    digest,
+    shiny,
+    jsonlite,
+    httr
 Suggests:
     shiny,
     plotly,
@@ -65,7 +71,9 @@ Suggests:
     yardstick,
     loo,
     posterior,
-    brms
+    brms,
+    knitr,
+    rmarkdown
 URL: https://github.com/altalanta/nhanes-bmi-bodyfat
 BugReports: https://github.com/altalanta/nhanes-bmi-bodyfat/issues
 VignetteBuilder: knitr

@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "generated_at": "2025-10-20 12:31:12",
+    "analysis_cycle": "2017-2018"
+  },
+  "integrity_check": {
+    "valid": true,
+    "issues": []
+  },
+  "update_check": {
+    "uptodate": false,
+    "updates": {
+      "DEMO_J": {
+        "status": "missing",
+        "action": "download",
+        "description": "Demographics data - file not found locally"
+      },
+      "BMX_J": {
+        "status": "missing",
+        "action": "download",
+        "description": "Body measures data - file not found locally"
+      },
+      "DXX_J": {
+        "status": "missing",
+        "action": "download",
+        "description": "DXA whole body data - file not found locally"
+      },
+      "DXXAG_J": {
+        "status": "missing",
+        "action": "download",
+        "description": "DXA android/gynoid data - file not found locally"
+      }
+    }
+  },
+  "registry_summary": {
+    "total_files": 0,
+    "active_files": 0,
+    "total_size": 0
+  },
+  "recommendations": [
+    "<f0><9f><93><a5> Data updates available - consider updating to latest NHANES release",
+    "<f0><9f><93><8b> Data registry is empty - run update_data_registry() to populate"
+  ]
+}
