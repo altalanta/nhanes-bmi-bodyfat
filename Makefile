@@ -112,10 +112,84 @@ api:
 	Rscript -e "library(nhanesbmi); results <- readRDS('outputs/tables/nhanes_analysis_results.rds'); create_results_api(results)"
 
 api-launch:
-	Rscript -e "library(nhanesbmi); launch_api_server()"
+	Rscript -e "pr <- plumb('api/api.R'); pr\$run(port=8000, host='0.0.0.0')"
+
+api-test:
+	curl -s http://localhost:8000/health | jq .
+
+api-docs:
+	open http://localhost:8000/__docs__/
 
 export-all:
 	Rscript -e "library(nhanesbmi); results <- readRDS('outputs/tables/nhanes_analysis_results.rds'); export_comprehensive(results, 'exports')"
+
+# Deployment automation
+deploy-docker:
+	Rscript deployment/deploy-docker.R
+
+deploy-shiny:
+	Rscript deployment/deploy-shinyapps.R
+
+deploy-api:
+	Rscript -e "pr <- plumb('api/api.R'); pr\$run(port=8000, host='0.0.0.0')" &
+
+deploy-production:
+	@echo "Deploying to production environment..."
+	@echo "1. Building Docker container..."
+	$(MAKE) deploy-docker
+	@echo "2. Starting API server..."
+	$(MAKE) deploy-api
+	@echo "3. Running health checks..."
+	@sleep 5
+	@curl -s http://localhost:8000/health | jq -r '.status' | grep -q "healthy" && echo "✅ API deployment successful" || echo "❌ API deployment failed"
+
+prepare-cran:
+	Rscript deployment/prepare-cran.R
+
+deploy: deploy-shiny deploy-docker
+
+# Monitoring and maintenance
+monitor:
+	@echo "Starting monitoring dashboard..."
+	R -e "shiny::runApp('deployment/monitoring_dashboard.R')"
+
+backup:
+	@echo "Creating system backup..."
+	@BACKUP_DIR="backups/$$(date +%Y%m%d_%H%M%S)"; \
+	mkdir -p "$$BACKUP_DIR"; \
+	cp -r data/registry/ "$$BACKUP_DIR/"; \
+	cp -r outputs/ "$$BACKUP_DIR/"; \
+	cp config/config.yml "$$BACKUP_DIR/"; \
+	echo "✅ Backup created: $$BACKUP_DIR"
+
+health-monitor:
+	@echo "Starting continuous health monitoring..."
+	@while true; do \
+		curl -s http://localhost:8000/health | jq -r '.status' | grep -q "healthy" && echo "✅ System healthy" || echo "❌ System issues detected"; \
+		sleep 60; \
+	done
+
+# Performance optimization tools
+performance-tools:
+	Rscript performance_tools.R
+
+performance-benchmark:
+	Rscript performance_tools.R benchmark
+
+performance-optimize:
+	Rscript performance_tools.R optimize
+
+performance-dashboard:
+	Rscript performance_tools.R dashboard
+
+performance-report:
+	Rscript performance_tools.R report
+
+performance-compare:
+	Rscript performance_tools.R compare
+
+performance-suggest:
+	Rscript performance_tools.R suggest
 
 # Release management
 release-patch:
@@ -176,7 +250,25 @@ help:
 	@echo "  advanced-stats - Run advanced statistical analysis framework (Bayesian, causal inference, effect sizes, cross-validation)"
 	@echo "  api        - Start REST API server for results access"
 	@echo "  api-launch - Launch API server from results file"
+	@echo "  api-test   - Test API endpoints"
+	@echo "  api-docs   - Open API documentation"
 	@echo "  export-all - Export results in all supported formats"
+	@echo "  deploy-docker - Build and test Docker container"
+	@echo "  deploy-shiny - Deploy Shiny app to shinyapps.io"
+	@echo "  deploy-api - Launch API server in background"
+	@echo "  deploy-production - Complete production deployment"
+	@echo "  prepare-cran - Prepare package for CRAN submission"
+	@echo "  deploy     - Deploy to both Shiny and Docker"
+	@echo "  monitor    - Start monitoring dashboard"
+	@echo "  backup     - Create system backup"
+	@echo "  health-monitor - Start continuous health monitoring"
+	@echo "  performance-tools - Launch comprehensive performance analysis"
+	@echo "  performance-benchmark - Run performance benchmarks"
+	@echo "  performance-optimize - Auto-tune performance settings"
+	@echo "  performance-dashboard - Generate performance dashboard data"
+	@echo "  performance-report - Generate comprehensive performance report"
+	@echo "  performance-compare - Compare configurations"
+	@echo "  performance-suggest - Get performance optimization suggestions"
 	@echo "  release-patch - Create patch version bump"
 	@echo "  release-minor - Create minor version bump"
 	@echo "  release-major - Create major version bump"

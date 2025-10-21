@@ -73,7 +73,10 @@ Suggests:
     posterior,
     brms,
     knitr,
-    rmarkdown
+    rmarkdown,
+    microbenchmark,
+    bench,
+    shinydashboard
 URL: https://github.com/altalanta/nhanes-bmi-bodyfat
 BugReports: https://github.com/altalanta/nhanes-bmi-bodyfat/issues
 VignetteBuilder: knitr
