@@ -6,6 +6,8 @@
 # Load project utilities
 source("scripts/load_config.R")
 source("scripts/error_handling.R")
+source("R/data_versioning.R")
+source("parallel_pipeline.R")
 
 # Check if Docker is available
 check_docker <- function() {
