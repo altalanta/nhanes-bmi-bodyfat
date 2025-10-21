@@ -43,3 +43,4 @@ cat("  make pipeline-vis    - Visualize pipeline graph\n")
 cat("  make pipeline-status - Show pipeline progress\n")
 cat("  make clean           - Clean output files\n")
 cat("  make help            - Show all available targets\n")
+

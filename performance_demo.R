@@ -161,3 +161,4 @@ cat("  make clean-cache        # Clear cached results\n")
 cat("  Rscript parallel_pipeline.R  # Run pipeline directly\n")
 
 cat("\n=== Demo completed successfully! ===\n")
+
