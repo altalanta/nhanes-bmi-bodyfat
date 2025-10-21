@@ -191,6 +191,25 @@ performance-compare:
 performance-suggest:
 	Rscript performance_tools.R suggest
 
+# Performance reporting and visualization
+performance-report:
+	Rscript performance/performance_reports.R report
+
+performance-dashboard:
+	Rscript performance/performance_reports.R dashboard
+
+performance-trends:
+	Rscript performance/performance_reports.R trends
+
+performance-summary:
+	Rscript performance/performance_reports.R summary
+
+performance-visualizations:
+	Rscript performance/performance_reports.R visualizations
+
+performance-optimization:
+	Rscript performance/performance_reports.R optimization
+
 # Release management
 release-patch:
 	Rscript -e "usethis::use_version('patch')"
@@ -269,6 +288,12 @@ help:
 	@echo "  performance-report - Generate comprehensive performance report"
 	@echo "  performance-compare - Compare configurations"
 	@echo "  performance-suggest - Get performance optimization suggestions"
+	@echo "  performance-report - Generate comprehensive performance report"
+	@echo "  performance-dashboard - Create interactive performance dashboard"
+	@echo "  performance-trends - Analyze performance trends over time"
+	@echo "  performance-summary - Generate performance summary for docs"
+	@echo "  performance-visualizations - Create performance charts and graphs"
+	@echo "  performance-optimization - Generate optimization recommendations"
 	@echo "  release-patch - Create patch version bump"
 	@echo "  release-minor - Create minor version bump"
 	@echo "  release-major - Create major version bump"
