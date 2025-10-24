@@ -3,11 +3,17 @@ R=Rscript
 .PHONY: all fetch cleandata analysis viz report test clean help
 
 # Main pipeline using custom parallel processing and caching
-all: parallel-pipeline
+all: parallel-pipeline ml-analysis multi-cycle-analysis
 
 # Pipeline targets
 parallel-pipeline:
 	$(R) parallel_pipeline.R
+
+ml-analysis: parallel-pipeline
+	$(R) scripts/ml_analysis.R
+
+multi-cycle-analysis: ml-analysis
+	$(R) scripts/multi_cycle_analysis.R
 
 parallel-pipeline-dry:
 	$(R) -e "source('parallel_pipeline.R'); cat('Pipeline structure loaded successfully\n')"
@@ -210,6 +216,23 @@ performance-visualizations:
 performance-optimization:
 	Rscript performance/performance_reports.R optimization
 
+# Collaboration system
+collaboration-overview:
+	R -e "source('R/collaboration_framework.R'); display_collaboration_overview()"
+
+collaboration-export:
+	R -e "source('R/collaboration_framework.R'); export_workspace('workspace_id', 'json', TRUE, TRUE)"
+
+collaboration-backup:
+	Rscript deployment/backup_recovery.R backup "manual_backup" "Manual collaboration backup"
+
+collaboration-restore:
+	Rscript deployment/backup_recovery.R restore "backup_name"
+
+# Collaboration demonstration
+collaboration-demo:
+	Rscript scripts/collaboration_demo.R
+
 # Release management
 release-patch:
 	Rscript -e "usethis::use_version('patch')"
@@ -237,6 +260,7 @@ clean-cache:
 help:
 	@echo "Available targets:"
 	@echo "  all/parallel-pipeline - Run complete parallel processing pipeline with caching"
+	@echo "  ml-analysis - Run machine learning analysis (requires parallel-pipeline)"
 	@echo "  tutorial - Launch interactive getting started tutorial"
 	@echo "  tutorial-troubleshooting - Launch interactive troubleshooting guide"
 	@echo "  config-wizard - Launch configuration wizard (Shiny app)"
@@ -294,6 +318,16 @@ help:
 	@echo "  performance-summary - Generate performance summary for docs"
 	@echo "  performance-visualizations - Create performance charts and graphs"
 	@echo "  performance-optimization - Generate optimization recommendations"
+	@echo "  ml-analysis - Run machine learning analysis (requires parallel-pipeline)"
+	@echo "  ml-models - Train and compare ML models"
+	@echo "  ml-features - Perform feature selection and engineering"
+	@echo "  ml-clustering - Run clustering analysis"
+	@echo "  ml-interpretability - Generate model explanations"
+	@echo "  multi-cycle-analysis - Run longitudinal analysis across NHANES cycles"
+	@echo "  multi-cycle-trends - Perform trend analysis"
+	@echo "  multi-cycle-cohorts - Analyze cohort differences"
+	@echo "  multi-cycle-models - Run longitudinal modeling"
+	@echo "  multi-cycle-exports - Export multi-cycle results"
 	@echo "  release-patch - Create patch version bump"
 	@echo "  release-minor - Create minor version bump"
 	@echo "  release-major - Create major version bump"
