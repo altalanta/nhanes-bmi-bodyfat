@@ -447,3 +447,5 @@ run_parallel_tests <- function() {
 if (!interactive()) {
   run_parallel_tests()
 }
+
+

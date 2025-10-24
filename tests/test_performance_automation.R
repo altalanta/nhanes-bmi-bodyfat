@@ -582,3 +582,5 @@ run_ci_performance_tests <- function() {
 if (!interactive()) {
   run_ci_performance_tests()
 }
+
+

@@ -722,3 +722,5 @@ run_performance_reporting <- function() {
 if (!interactive()) {
   run_performance_reporting()
 }
+
+
