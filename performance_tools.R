@@ -690,3 +690,5 @@ run_performance_tools <- function() {
 if (!interactive()) {
   run_performance_tools()
 }
+
+

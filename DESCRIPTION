@@ -76,7 +76,24 @@ Suggests:
     rmarkdown,
     microbenchmark,
     bench,
-    shinydashboard
+    shinydashboard,
+    caret,
+    randomForest,
+    xgboost,
+    neuralnet,
+    cluster,
+    factoextra,
+    DALEX,
+    DALEXtra,
+    lime,
+    shapviz,
+    recipes,
+    tidymodels,
+    workflows,
+    tune,
+    finetune,
+    stacks,
+    fastDummies
 URL: https://github.com/altalanta/nhanes-bmi-bodyfat
 BugReports: https://github.com/altalanta/nhanes-bmi-bodyfat/issues
 VignetteBuilder: knitr
