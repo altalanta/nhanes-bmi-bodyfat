@@ -7,6 +7,9 @@
 
 ## 🌟 Key Features
 
+- **🛡️ Guardian Framework**: Enterprise-grade security, audit trails, and regulatory compliance (HIPAA, GDPR, 21CFR11).
+- **📝 Dissemination Engine**: Automated generation of manuscripts, interactive dashboards, and reproducibility packages.
+- **🌐 Poly-Analyst Framework**: Ingest, harmonize, and perform meta-analyses across multiple, disparate health studies (e.g., NHANES, UK Biobank).
 - **⚡ High-Performance Parallel Processing**: 3-5x faster analysis with intelligent caching
 - **🤖 Machine Learning Integration**: Advanced predictive modeling and pattern discovery
 - **📈 Multi-Study Longitudinal Framework**: Cross-cycle analysis, trend detection, and cohort comparison
@@ -41,7 +44,58 @@ Rscript deployment/cloud_deployment.R scale aws 10
 
 ## Overview
 
-This **production-ready research platform** provides comprehensive analysis of BMI-body fat relationships using NHANES 2017-2018 data with advanced features for reproducibility, performance, and usability:
+This repository provides a production-grade R platform for analyzing the relationship between Body Mass Index (BMI) and body fat percentage using National Health and Nutrition Examination Survey (NHANES) data. It has been enhanced with a suite of advanced features turning it into a comprehensive epidemiological research ecosystem.
+
+### Key Innovations Include:
+
+#### Dissemination Engine
+Automate the "last mile" of research by generating communication-ready artifacts directly from analysis results.
+```bash
+# Generate a publication-ready manuscript (PDF)
+make manuscript
+
+# Create a self-contained interactive dashboard
+make dashboard
+
+# Bundle the entire project for sharing
+make repro-package
+```
+
+#### Guardian Framework
+Enterprise-grade security and compliance features ensure the platform meets the stringent requirements of institutional research environments and regulatory standards.
+```bash
+# Check compliance status
+make guardian-compliance
+
+# Apply data anonymization
+make guardian-anonymize
+
+# Generate regulatory validation package
+make guardian-validate
+```
+
+#### Dissemination Engine
+Automate the "last mile" of research by generating communication-ready artifacts directly from analysis results.
+```bash
+# Generate a publication-ready manuscript (PDF)
+make manuscript
+
+# Create a self-contained interactive dashboard
+make dashboard
+
+# Bundle the entire project for sharing
+make repro-package
+```
+
+#### Poly-Analyst Framework
+The platform can now integrate data from multiple sources. The ontology-driven harmonization engine standardizes variables across studies, enabling powerful meta-analyses.
+```bash
+# Run a multi-study integration and meta-analysis
+make poly-analyst
+```
+
+#### High-Performance Pipeline
+The core analysis pipeline is built for speed and efficiency, using multi-core parallel processing and an intelligent caching system to avoid re-computing results.
 
 ### 🔬 **Core Analysis Features**
 - **Survey-weighted Pearson correlations** between BMI and DXA-measured % body fat
