@@ -2,12 +2,13 @@ R=Rscript
 
 .PHONY: all fetch cleandata analysis viz report test clean help
 
-# Main pipeline using custom parallel processing and caching
-all: parallel-pipeline ml-analysis multi-cycle-analysis
+# This will be the default target executed when you run `make`
+# It runs the complete analysis pipeline in the correct order.
+all: parallel-pipeline ml-analysis multi-cycle-analysis poly-analyst
 
 # Pipeline targets
-parallel-pipeline:
-	$(R) parallel_pipeline.R
+parallel-pipeline: derive-dataset
+	$(R) scripts/nhanes_bmi_bodyfat_analysis.R --parallel --cached
 
 ml-analysis: parallel-pipeline
 	$(R) scripts/ml_analysis.R
@@ -15,8 +16,78 @@ ml-analysis: parallel-pipeline
 multi-cycle-analysis: ml-analysis
 	$(R) scripts/multi_cycle_analysis.R
 
-parallel-pipeline-dry:
-	$(R) -e "source('parallel_pipeline.R'); cat('Pipeline structure loaded successfully\n')"
+# Run the multi-source poly-analyst integration and meta-analysis
+poly-analyst: multi-cycle-analysis
+	$(R) scripts/poly_analyst.R
+
+# --- Dissemination Engine ---
+
+# Generate a publication-ready manuscript in PDF format
+manuscript: poly-analyst
+	$(R) scripts/disseminate.R manuscript --format=pdf
+
+# Generate a manuscript in DOCX format
+manuscript-docx: poly-analyst
+	$(R) scripts/disseminate.R manuscript --format=docx
+
+# Generate an interactive Shiny dashboard
+dashboard: poly-analyst
+	$(R) scripts/disseminate.R dashboard
+
+# Create a zip-archived reproducibility package
+repro-package:
+	$(R) scripts/disseminate.R package
+
+# --- Guardian Framework ---
+
+# Display Guardian Framework status
+guardian-status:
+	$(R) scripts/guardian.R status
+
+# Verify audit trail integrity
+guardian-audit:
+	$(R) scripts/guardian.R audit
+
+# Run compliance checks
+guardian-compliance:
+	$(R) scripts/guardian.R compliance
+
+# Generate validation package
+guardian-validate:
+	$(R) scripts/guardian.R validate
+
+# Apply data anonymization
+guardian-anonymize:
+	$(R) scripts/guardian.R anonymize --file=data/derived/nhanes_derived_data.rds --method=k_anonymity --k=5
+
+# Scan for PII in dataset
+guardian-pii-scan:
+	$(R) scripts/guardian.R pii-scan --file=data/derived/nhanes_derived_data.rds
+
+# Manage user sessions
+guardian-session:
+	$(R) scripts/guardian.R session list
+
+# Manage access policies
+guardian-policy:
+	$(R) scripts/guardian.R policy list
+
+
+# --- Data & Cache Management ---
+
+# Clean up all generated files
+clean:
+	rm -f data/derived/*
+	rm -f outputs/tables/*.csv
+	rm -f outputs/figures/*.png outputs/figures/*.pdf
+	rm -f outputs/logs/*.txt
+	rm -f outputs/report/*
+
+cleanall: clean
+	rm -f data/raw/*.XPT data/raw/manifest.json
+
+clean-cache:
+	rm -rf cache/*
 
 # Interactive documentation and tools
 tutorial:
@@ -259,8 +330,34 @@ clean-cache:
 
 help:
 	@echo "Available targets:"
-	@echo "  all/parallel-pipeline - Run complete parallel processing pipeline with caching"
-	@echo "  ml-analysis - Run machine learning analysis (requires parallel-pipeline)"
+	@echo "  all                  - Run the complete analysis pipeline (parallel, ML, multi-cycle, poly-analyst)"
+	@echo "  fetch                - Download raw NHANES data files"
+	@echo "  derive-dataset       - Create the derived dataset for analysis"
+	@echo "  parallel-pipeline    - Run the main analysis using parallel processing and caching"
+	@echo "  ml-analysis          - Run machine learning analysis (requires parallel-pipeline)"
+	@echo "  multi-cycle-analysis - Run longitudinal analysis across NHANES cycles"
+	@echo "  poly-analyst         - Run multi-source data integration and meta-analysis"
+	@echo ""
+	@echo "Dissemination Targets:"
+	@echo "  manuscript           - Generate a publication-ready manuscript (PDF)"
+	@echo "  manuscript-docx      - Generate the manuscript as a .docx file"
+	@echo "  dashboard            - Generate an interactive Shiny dashboard"
+	@echo "  repro-package        - Create a zip file for reproducibility"
+	@echo ""
+	@echo "Guardian Framework (Security & Compliance):"
+	@echo "  guardian-status      - Display Guardian Framework status"
+	@echo "  guardian-audit       - Verify audit trail integrity"
+	@echo "  guardian-compliance  - Run compliance checks (HIPAA, GDPR, 21CFR11)"
+	@echo "  guardian-validate    - Generate validation package for regulatory submission"
+	@echo "  guardian-anonymize   - Apply data anonymization (k-anonymity)"
+	@echo "  guardian-pii-scan    - Scan dataset for PII and privacy risks"
+	@echo "  guardian-session     - Manage user sessions"
+	@echo "  guardian-policy      - Manage access control policies"
+	@echo ""
+	@echo "Management Targets:"
+	@echo "  clean                - Remove all generated files (derived data, outputs, logs, cache)"
+	@echo "  clean-cache          - Clear only the data processing cache"
+	@echo "  docker-build         - Build the Docker image for the project"
 	@echo "  tutorial - Launch interactive getting started tutorial"
 	@echo "  tutorial-troubleshooting - Launch interactive troubleshooting guide"
 	@echo "  config-wizard - Launch configuration wizard (Shiny app)"
