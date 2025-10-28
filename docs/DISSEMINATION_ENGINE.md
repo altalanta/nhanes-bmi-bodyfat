@@ -63,3 +63,4 @@ You can easily modify the content and style of the generated manuscript by editi
   - `dashboard_app.R`: A self-contained Shiny application script that serves as the template for the interactive dashboard.
 
 This modular structure allows for advanced customization. For example, you could add new Quarto templates for different journal formats or create new dashboard templates to visualize different aspects of the analysis.
+
