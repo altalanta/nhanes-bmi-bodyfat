@@ -11,6 +11,12 @@ outputs:
   figures_dir: "outputs/figures"
   logs_dir: "outputs/logs"
   report_dir: "outputs/report"
+  correlation_results_file: "outputs/tables/corr_bmi_bodyfat_overall_and_by_sex.csv"
+  bmi_class_results_file: "outputs/tables/bodyfat_by_bmi_class_by_sex.csv"
+  main_plot_file: "outputs/figures/bmi_vs_bodyfat_plot_sex_facets.png"
+  bmi_class_plot_file: "outputs/figures/bodyfat_by_bmi_class.png"
+  methods_file: "outputs/logs/pipeline_methods.txt"
+  final_report_file: "outputs/report/report.html"
 
 # NHANES data files (2017-2018)
 nhanes:

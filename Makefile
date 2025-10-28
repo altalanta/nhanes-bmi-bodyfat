@@ -1,37 +1,33 @@
 R=Rscript
 
-.PHONY: all fetch cleandata analysis viz report test clean help
+.PHONY: all test clean help
 
 # This will be the default target executed when you run `make`
 # It runs the complete analysis pipeline in the correct order.
-all: parallel-pipeline ml-analysis multi-cycle-analysis poly-analyst
+all: pipeline
 
 # Pipeline targets
-parallel-pipeline: derive-dataset
-	$(R) scripts/nhanes_bmi_bodyfat_analysis.R --parallel --cached
+pipeline:
+	$(R) -e "targets::tar_make()"
 
-ml-analysis: parallel-pipeline
-	$(R) scripts/ml_analysis.R
+pipeline-vis:
+	$(R) -e "targets::tar_visnetwork()"
 
-multi-cycle-analysis: ml-analysis
-	$(R) scripts/multi_cycle_analysis.R
-
-# Run the multi-source poly-analyst integration and meta-analysis
-poly-analyst: multi-cycle-analysis
-	$(R) scripts/poly_analyst.R
+pipeline-status:
+	$(R) -e "targets::tar_progress()"
 
 # --- Dissemination Engine ---
 
 # Generate a publication-ready manuscript in PDF format
-manuscript: poly-analyst
+manuscript:
 	$(R) scripts/disseminate.R manuscript --format=pdf
 
 # Generate a manuscript in DOCX format
-manuscript-docx: poly-analyst
+manuscript-docx:
 	$(R) scripts/disseminate.R manuscript --format=docx
 
 # Generate an interactive Shiny dashboard
-dashboard: poly-analyst
+dashboard:
 	$(R) scripts/disseminate.R dashboard
 
 # Create a zip-archived reproducibility package
@@ -77,6 +73,7 @@ guardian-policy:
 
 # Clean up all generated files
 clean:
+	$(R) -e "targets::tar_destroy()"
 	rm -f data/derived/*
 	rm -f outputs/tables/*.csv
 	rm -f outputs/figures/*.png outputs/figures/*.pdf
@@ -127,38 +124,16 @@ data-updates:
 data-manifest:
 	$(R) -e "source('R/data_versioning.R'); generate_data_manifest()"
 
-# Legacy targets (for backward compatibility)
-fetch:
-	$(R) -e "targets::tar_make(names = 'nhanes_files')"
-
-validate: fetch
-	$(R) -e "targets::tar_make(names = c('nhanes_files', 'validation_results'))"
-
-cleandata: validate
-	$(R) -e "targets::tar_make(names = c('nhanes_files', 'demo_data', 'bmx_data', 'dxx_data', 'dxxag_data', 'validation_results', 'merged_data', 'cleaned_data'))"
-
-analysis: cleandata
-	$(R) -e "targets::tar_make(names = c('survey_design', 'correlation_results', 'bmi_class_results', 'linearity_results'))"
-
-sensitivity: analysis
-	$(R) -e "targets::tar_make(names = 'sensitivity_results')"
-
-viz: sensitivity
-	$(R) -e "targets::tar_make(names = c('main_plot', 'bmi_class_plot'))"
-
-report: viz
-	$(R) -e "targets::tar_make(names = c('results_export', 'report_html'))"
-
 # Testing
 test:
 	$(R) -e "testthat::test_dir('tests')"
 
 # Code quality
 lint:
-	$(R) -e "lintr::lint_dir('scripts')"
+	$(R) -e "lintr::lint_dir(c('R', 'scripts'))"
 
 format:
-	$(R) -e "styler::style_dir('scripts')"
+	$(R) -e "styler::style_dir(c('R', 'scripts'))"
 
 format-check:
 	$(R) -e "styler::style_dir('scripts', dry = 'on')"
@@ -178,11 +153,11 @@ prepare-cran:
 deploy: deploy-shiny deploy-docker
 
 # Advanced analysis
-advanced:
-	Rscript -e "library(nhanesbmi); results <- run_optimized_analysis(); advanced <- run_complete_advanced_analysis(results\$analytic_data, results\$config); saveRDS(advanced, 'outputs/tables/advanced_analysis_results.rds')"
-
 advanced-stats:
-	Rscript scripts/advanced_statistical_analysis.R
+	$(R) -e "targets::tar_make(names = 'advanced_stats')"
+
+ml-analysis:
+	$(R) -e "targets::tar_make(names = 'ml_results')"
 
 # API and integration
 api:
@@ -330,13 +305,12 @@ clean-cache:
 
 help:
 	@echo "Available targets:"
-	@echo "  all                  - Run the complete analysis pipeline (parallel, ML, multi-cycle, poly-analyst)"
-	@echo "  fetch                - Download raw NHANES data files"
-	@echo "  derive-dataset       - Create the derived dataset for analysis"
-	@echo "  parallel-pipeline    - Run the main analysis using parallel processing and caching"
-	@echo "  ml-analysis          - Run machine learning analysis (requires parallel-pipeline)"
-	@echo "  multi-cycle-analysis - Run longitudinal analysis across NHANES cycles"
-	@echo "  poly-analyst         - Run multi-source data integration and meta-analysis"
+	@echo "  all                  - Run the complete analysis pipeline using {targets}"
+	@echo "  pipeline             - Run the {targets} pipeline"
+	@echo "  pipeline-vis         - Visualize the {targets} pipeline"
+	@echo "  pipeline-status      - Show the status of the {targets} pipeline"
+	@echo "  ml-analysis          - Run machine learning analysis (part of the main pipeline)"
+	@echo "  advanced-stats       - Run advanced statistical analysis (part of the main pipeline)"
 	@echo ""
 	@echo "Dissemination Targets:"
 	@echo "  manuscript           - Generate a publication-ready manuscript (PDF)"
@@ -355,8 +329,8 @@ help:
 	@echo "  guardian-policy      - Manage access control policies"
 	@echo ""
 	@echo "Management Targets:"
-	@echo "  clean                - Remove all generated files (derived data, outputs, logs, cache)"
-	@echo "  clean-cache          - Clear only the data processing cache"
+	@echo "  clean                - Remove all generated files and destroy {targets} cache"
+	@echo "  cleanall             - Clean all generated files and raw data"
 	@echo "  docker-build         - Build the Docker image for the project"
 	@echo "  tutorial - Launch interactive getting started tutorial"
 	@echo "  tutorial-troubleshooting - Launch interactive troubleshooting guide"
@@ -370,13 +344,6 @@ help:
 	@echo "  data-integrity - Validate data file integrity"
 	@echo "  data-updates - Check for available data updates"
 	@echo "  data-manifest - Generate data manifest for reproducibility"
-	@echo "  fetch      - Download NHANES data files with checksum verification"
-	@echo "  validate   - Run comprehensive data validation pipeline"
-	@echo "  cleandata  - Convert XPT to derived formats with exclusions and validation"
-	@echo "  analysis   - Run main NHANES BMI vs body fat analysis with performance monitoring"
-	@echo "  sensitivity - Run sensitivity analyses and model comparisons"
-	@echo "  viz        - Generate publication-ready visualization"
-	@echo "  report     - Render Quarto report to HTML"
 	@echo "  test       - Run test suite"
 	@echo "  lint       - Check code style and quality"
 	@echo "  format     - Auto-format R code to project style"
@@ -386,8 +353,8 @@ help:
 	@echo "  deploy-docker - Build and test Docker container"
 	@echo "  prepare-cran - Prepare package for CRAN submission"
 	@echo "  deploy     - Deploy to both Shiny and Docker"
-	@echo "  advanced   - Run complete advanced statistical analysis"
-	@echo "  advanced-stats - Run advanced statistical analysis framework (Bayesian, causal inference, effect sizes, cross-validation)"
+	@echo "  advanced-stats - Run advanced statistical analysis (part of the main pipeline)"
+	@echo "  ml-analysis - Run machine learning analysis (part of the main pipeline)"
 	@echo "  api        - Start REST API server for results access"
 	@echo "  api-launch - Launch API server from results file"
 	@echo "  api-test   - Test API endpoints"
@@ -415,16 +382,7 @@ help:
 	@echo "  performance-summary - Generate performance summary for docs"
 	@echo "  performance-visualizations - Create performance charts and graphs"
 	@echo "  performance-optimization - Generate optimization recommendations"
-	@echo "  ml-analysis - Run machine learning analysis (requires parallel-pipeline)"
-	@echo "  ml-models - Train and compare ML models"
-	@echo "  ml-features - Perform feature selection and engineering"
-	@echo "  ml-clustering - Run clustering analysis"
-	@echo "  ml-interpretability - Generate model explanations"
-	@echo "  multi-cycle-analysis - Run longitudinal analysis across NHANES cycles"
-	@echo "  multi-cycle-trends - Perform trend analysis"
-	@echo "  multi-cycle-cohorts - Analyze cohort differences"
-	@echo "  multi-cycle-models - Run longitudinal modeling"
-	@echo "  multi-cycle-exports - Export multi-cycle results"
+	@echo "  collaboration-demo - Run collaboration framework demonstration"
 	@echo "  release-patch - Create patch version bump"
 	@echo "  release-minor - Create minor version bump"
 	@echo "  release-major - Create major version bump"
