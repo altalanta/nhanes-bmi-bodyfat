@@ -84,3 +84,4 @@ The Poly-Analyst Framework is designed for extension.
 3.  **(Optional) Create a New Connector**: If your data is not in a local CSV or RDS file, you can add a new `else if` block to the `create_data_connector` function to handle your specific data format.
 
 4.  **Run the Pipeline**: Update the `sources_to_analyze` vector in `scripts/poly_analyst.R` to include your new study's ID and re-run `make poly-analyst`.
+
