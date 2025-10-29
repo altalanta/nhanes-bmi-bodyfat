@@ -64,3 +64,4 @@ You can easily modify the content and style of the generated manuscript by editi
 
 This modular structure allows for advanced customization. For example, you could add new Quarto templates for different journal formats or create new dashboard templates to visualize different aspects of the analysis.
 
+
