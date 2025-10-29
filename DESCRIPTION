@@ -68,9 +68,11 @@ Imports:
     purrr,
     quarto,
     zip,
-    crayon,
-    cli,
-    openssl
+    openssl,
+    targets,
+    future,
+    furrr,
+    yaml
 Suggests:
     shiny,
     plotly,

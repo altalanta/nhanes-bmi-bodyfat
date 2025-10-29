@@ -28,11 +28,7 @@ tar_option_set(
 )
 
 # Source utility functions
-source("R/load_config.R")
-source("R/error_handling.R")
-source("R/data_validation.R")
-source("R/ml_analysis.R")
-source("R/pipeline_steps.R")
+library(nhanesbmi)
 
 # Pipeline targets
 list(
