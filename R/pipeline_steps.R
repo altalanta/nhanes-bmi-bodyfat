@@ -1,4 +1,8 @@
 # Helper functions for the pipeline
+#' Fetch NHANES data files
+#'
+#' @param config The project configuration list.
+#' @return A character vector of file paths.
 fetch_nhanes_data <- function(config) {
   source("scripts/fetch_nhanes.R")
   return(file.path(config$data$raw_dir, c(
@@ -9,6 +13,10 @@ fetch_nhanes_data <- function(config) {
   )))
 }
 
+#' Validate a list of NHANES datasets
+#'
+#' @param datasets A list of data frames to validate.
+#' @return A list of validation results.
 validate_nhanes_datasets <- function(datasets) {
   results <- furrr::future_map(datasets, function(dataset) {
     # Validate each dataset
@@ -17,6 +25,10 @@ validate_nhanes_datasets <- function(datasets) {
   return(results)
 }
 
+#' Identify the body fat variable in the DXX dataset
+#'
+#' @param dxx_data The DXX dataset.
+#' @return The name of the body fat variable.
 identify_bodyfat_variable <- function(dxx_data) {
   # Logic to identify body fat variable (same as current script)
   dxx_labels <- attr(dxx_data, "var.labels")
@@ -40,6 +52,10 @@ identify_bodyfat_variable <- function(dxx_data) {
   return(bodyfat_vars[1]) # Return first match
 }
 
+#' Identify the android fat variable in the DXXAG dataset
+#'
+#' @param dxxag_data The DXXAG dataset.
+#' @return The name of the android fat variable.
 identify_android_fat <- function(dxxag_data) {
   if (nrow(dxxag_data) == 0) return(NULL)
 
@@ -51,6 +67,10 @@ identify_android_fat <- function(dxxag_data) {
   return(NULL)
 }
 
+#' Identify the gynoid fat variable in the DXXAG dataset
+#'
+#' @param dxxag_data The DXXAG dataset.
+#' @return The name of the gynoid fat variable.
 identify_gynoid_fat <- function(dxxag_data) {
   if (nrow(dxxag_data) == 0) return(NULL)
 
@@ -62,6 +82,16 @@ identify_gynoid_fat <- function(dxxag_data) {
   return(NULL)
 }
 
+#' Merge NHANES datasets
+#'
+#' @param demo Demographics data.
+#' @param bmx Body measures data.
+#' @param dxx DXA data.
+#' @param dxxag Android/gynoid fat data.
+#' @param bodyfat_var Name of the body fat variable.
+#' @param android_var Name of the android fat variable.
+#' @param gynoid_var Name of the gynoid fat variable.
+#' @return A merged data frame.
 merge_nhanes_datasets <- function(demo, bmx, dxx, dxxag, bodyfat_var, android_var, gynoid_var) {
   # Merge datasets (same logic as current script)
   nhanes <- demo %>%
@@ -77,6 +107,11 @@ merge_nhanes_datasets <- function(demo, bmx, dxx, dxxag, bodyfat_var, android_va
   return(nhanes)
 }
 
+#' Clean the analytic dataset
+#'
+#' @param data The merged dataset.
+#' @param config The project configuration list.
+#' @return A cleaned data frame.
 clean_analytic_dataset <- function(data, config) {
   # Apply inclusion criteria (same as current script)
   nhanes_adults <- data %>%
@@ -109,6 +144,11 @@ clean_analytic_dataset <- function(data, config) {
   return(nhanes_complete)
 }
 
+#' Create the survey design object
+#'
+#' @param data The cleaned dataset.
+#' @param config The project configuration list.
+#' @return A survey design object.
 create_survey_design <- function(data, config) {
   validate_survey_design(
     data,
@@ -128,6 +168,10 @@ create_survey_design <- function(data, config) {
   return(svy_design)
 }
 
+#' Compute survey-weighted correlations
+#'
+#' @param design The survey design object.
+#' @return A data frame of correlation results.
 compute_correlations_parallel <- function(design) {
   # Compute correlations in parallel by sex
   future_map(c("Overall", "Male", "Female"), function(group) {
@@ -157,6 +201,11 @@ compute_correlations_parallel <- function(design) {
   }) %>% bind_rows()
 }
 
+#' Compute body fat statistics by BMI class
+#'
+#' @param design The survey design object.
+#' @param data The cleaned dataset.
+#' @return A data frame of results.
 compute_bmi_class_stats_parallel <- function(design, data) {
   # Compute stats by BMI class and sex in parallel
   bmi_sex_grid <- expand.grid(
@@ -212,6 +261,10 @@ compute_bmi_class_stats_parallel <- function(design, data) {
   }) %>% bind_rows()
 }
 
+#' Assess the linearity of the BMI-body fat relationship
+#'
+#' @param design The survey design object.
+#' @return A list of linearity assessment results.
 assess_linearity <- function(design) {
   linear_model <- svyglm(bodyfat_pct ~ BMXBMI, design = design)
   quad_model <- svyglm(bodyfat_pct ~ BMXBMI + I(BMXBMI^2), design = design)
@@ -226,6 +279,11 @@ assess_linearity <- function(design) {
   )
 }
 
+#' Create BMI vs. body fat plot
+#'
+#' @param data The cleaned dataset.
+#' @param output_file Path to save the output plot.
+#' @return The output file path.
 create_bmi_bodyfat_plot <- function(data, output_file) {
   plot_data <- data %>%
     mutate(plot_weight = WTMEC2YR / sum(WTMEC2YR) * nrow(data))
@@ -248,6 +306,11 @@ create_bmi_bodyfat_plot <- function(data, output_file) {
   return(output_file)
 }
 
+#' Create body fat by BMI class plot
+#'
+#' @param bmi_results A data frame with BMI class results.
+#' @param output_file Path to save the output plot.
+#' @return The output file path.
 create_bmi_class_plot <- function(bmi_results, output_file) {
   p <- ggplot(bmi_results, aes(x = bmi_cat, y = mean_bodyfat, fill = sex)) +
     geom_bar(stat = "identity", position = "dodge") +
@@ -266,16 +329,37 @@ create_bmi_class_plot <- function(bmi_results, output_file) {
   return(output_file)
 }
 
+#' Run sensitivity analyses
+#'
+#' @param design The survey design object.
+#' @param data The cleaned dataset.
+#' @return A list of sensitivity analysis results.
 run_sensitivity_analyses <- function(design, data) {
   # Placeholder for sensitivity analyses
   list(sensitivity_complete = TRUE)
 }
 
+#' Run advanced statistics
+#'
+#' @param design The survey design object.
+#' @param data The cleaned dataset.
+#' @return A list of advanced statistics results.
 run_advanced_statistics <- function(design, data) {
   # Placeholder for advanced statistics
   list(advanced_complete = TRUE)
 }
 
+#' Export all analysis results
+#'
+#' @param corr Correlation results.
+#' @param bmi BMI class results.
+#' @param linear Linearity results.
+#' @param sens Sensitivity analysis results.
+#' @param adv Advanced statistics results.
+#' @param corr_file Path to save correlation results.
+#' @param bmi_file Path to save BMI class results.
+#' @param methods_file Path to save methods file.
+#' @return The methods file path.
 export_all_results <- function(corr, bmi, linear, sens, adv, corr_file, bmi_file, methods_file) {
   # Export results to CSV files
   write.csv(corr, corr_file, row.names = FALSE)
@@ -295,6 +379,11 @@ export_all_results <- function(corr, bmi, linear, sens, adv, corr_file, bmi_file
   return(methods_file)
 }
 
+#' Render the Quarto report
+#'
+#' @param results_file Path to the results file (dependency).
+#' @param output_file Path to save the final report.
+#' @return The output file path.
 render_quarto_report <- function(results_file, output_file) {
   # Render Quarto report
   quarto::quarto_render("report.qmd", output_file = output_file)
