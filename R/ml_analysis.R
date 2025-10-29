@@ -2,6 +2,11 @@
 
 # Machine Learning Analysis Integration for NHANES BMI Body Fat Analysis
 # Extends the core analysis with advanced ML capabilities
+#' Run Machine Learning Analysis
+#'
+#' @param cleaned_data The cleaned NHANES dataset.
+#' @param config The project configuration list.
+#' @return A list of machine learning analysis results.
 run_ml_analysis <- function(cleaned_data, config) {
   # Load required libraries with error handling
   required_packages <- c(
@@ -172,3 +177,4 @@ run_ml_analysis <- function(cleaned_data, config) {
 
   return(ml_results)
 }
+
