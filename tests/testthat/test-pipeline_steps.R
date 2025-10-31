@@ -51,3 +51,5 @@ test_that("merge_nhanes_datasets correctly joins data", {
   expect_equal(ncol(merged), 10) # 7 from demo + 1 from bmx + 1 from dxx + 2 from dxxag, minus SEQN
   expect_true(all(c("BMXBMI", "DUMMYFAT", "ANDROID", "GYNOID") %in% names(merged)))
 })
+
+
