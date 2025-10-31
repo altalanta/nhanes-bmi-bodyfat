@@ -72,7 +72,8 @@ Imports:
     targets,
     future,
     furrr,
-    yaml
+    yaml,
+    checkmate
 Suggests:
     shiny,
     plotly,
