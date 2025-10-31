@@ -428,3 +428,5 @@ The modular architecture makes it easy to add:
 **The Guardian Framework transforms the NHANES BMI Body Fat Analysis Platform into an enterprise-ready research environment suitable for the most demanding institutional and regulatory requirements while maintaining ease of use for individual researchers.**
 
 
+
+
