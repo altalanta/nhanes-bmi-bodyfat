@@ -1,4 +1,0 @@
-[INFO] 2025-10-16 17:50:02: === Performance tracking session started ===
-[INFO] 2025-10-16 17:50:02: Session: nhanes_modular_analysis
-[INFO] 2025-10-16 17:50:02: Start time: 2025-10-16 17:50:02
-[INFO] 2025-10-16 17:50:02: Initial memory usage: 0 MB
