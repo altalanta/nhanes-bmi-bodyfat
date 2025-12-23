@@ -1,3 +1,5 @@
+<img width="3000" height="1200" alt="bmi_vs_bodyfat_plot_sex_facets" src="https://github.com/user-attachments/assets/71ca3db2-b34f-46a5-aae9-e47a98f1be20" />
+
 # NHANES BMI vs Body Fat Analysis
 
 [![R-CMD-check](https://github.com/altalanta/nhanes-bmi-bodyfat/actions/workflows/R-CMD-check.yml/badge.svg)](https://github.com/altalanta/nhanes-bmi-bodyfat/actions/workflows/R-CMD-check.yml)
